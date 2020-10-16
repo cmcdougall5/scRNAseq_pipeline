@@ -1,0 +1,24 @@
+{
+    "id": "84A67788",
+    "path": "~/Documents/Project 2/Data analysis/scRNAseq_pipeline/scRNAseq_pipeline.R",
+    "project_path": "scRNAseq_pipeline.R",
+    "type": "r_source",
+    "hash": "3323357124",
+    "contents": "",
+    "dirty": false,
+    "created": 1602855237459.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "cursorPosition": "89,41",
+        "scrollLine": "75"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1602879546,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1602879546014,
+    "read_only": false,
+    "read_only_alternatives": []
+}
