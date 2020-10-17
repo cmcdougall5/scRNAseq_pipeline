@@ -16,7 +16,7 @@ data.dir <- "/Users/craigmcdougall/Documents/Project 2/Data/Cheung"
 list.files(data.dir)
 #have now seen that the files are there
 
-############################# 1. Load libraries
+############################# 1. Call libraries
 #libraries required throughought the script
 library(dplyr)
 library(Seurat)
@@ -33,12 +33,12 @@ raw.data <- Read10X(data.dir=data.dir)
 #initialise a Seurat object with the raw (not normalised) data. This is a count matrix
 data <- CreateSeuratObject(counts=raw.data, project = "data", min.cells = 3, min.features = 200) 
 
-######################### 3. Examine confounding sources of variation (mitochondrial mapping)
+######################### 3. Data visualisation/Quality Control plots
 
 #QC: selecting cells for analysis
   #- # genes per cell (id low quality cells or multiple reads)
   #- total # molecules in a cell
-  #- % of reads that map to mitochondrial genome
+  #- % of reads that map to mitochondrial genome - confounding source of variation
 
 #store mitochoindrial % in the Seurat object meta data
 #Seurat recommends MT- prefix for mitochondria data
