@@ -96,21 +96,8 @@ data <- FindClusters(data, verbose=FALSE)
 #plot the clusters
 DimPlot(data, label=TRUE) + NoLegend()
 
-#######################   7. Finding deferentially expressed features (biomarkers for each)
 
-#find the markers that define clusters via differential expression 
-#what makes each cluster different?
-
-#use findAllMarkers, 25% de threshold, only +ve ones
-#data.markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-
-#can look to see top 2 DE genes in each cluster
-#increase display optiions to show all
-#options(dplyr.print_max=1e9)
-#data.markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
-
-
-#########################  8. attributing cell type
+#########################  7. attributing cell type
 #how well do the clusters approximate the cell types?
 #This is done manually by examination of feature plot 
 #Done by cell expression, classification criteria (only really care about corticotrophs, but other plots usefull to exclude cluster)
@@ -120,7 +107,7 @@ DimPlot(data, label=TRUE) + NoLegend()
 # Lactotrophs (Pou1f1 + Prl)
 # Gonadotrophs (Lhb)
 # Melanotrophs (Pomc + Pcsk2 + Pax7)
-#Corticotrophs (Pomc + Crhr1 + Avpr1b - Pcsk2 - Pax7)
+#Corticotrophs (Pomc + Crhr1 + Avpr1b + Gpc5 - Pcsk2 - Pax7)
 
 #Visualise the canonical marker genes 
 
@@ -136,28 +123,22 @@ FeaturePlot(data, features = c("Pomc","Pax7","Pcsk2"), pt.size = 0.2)&scale_colo
 #then id the corticotrophs
 FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2)&scale_color_viridis_c() 
 
-#for Cheung data 
-# Melanotrophs cluster 16
-#Corticotrophs  cluster 14
 
-# can put names on the featureplot 
+
+####################### 8. pull out the corticotrophs
 #enter the cotricoph cell ids, found in visualisation. Note change to correct cluster #s or will miss-match
 #new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22")
 new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","cort","15","16","17","18","19","20","21","22")
 
- 
 names(new.cluster.ids) <- levels(data)
- 
+
 data <- RenameIdents(data, new.cluster.ids)
 #then put on the plot to confirm slected the correct one (sanity check)
 DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
-
-####################### 9. pull out the corticotrophs
-
 #or pull out a  seurat of cort only
 cortico <- subset(data, idents = "cort")
 
-##################### 10. Re-cluster the corticotrophs only
+##################### 9. Re-cluster the corticotrophs only
 
 #dimensional analysis
 #PCA to identify PCs
@@ -184,8 +165,5 @@ FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color
 cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
 cortico.markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
-
-
-
 
 
