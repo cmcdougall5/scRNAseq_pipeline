@@ -26,10 +26,10 @@ The pipeline is based on the [Seurat R. package](https://satijalab.org/seurat/),
 
 Example single cell RNA sequence data is available in public repositories. In the project the pipeline was designed for, the following data sets were examined:
 
-*   [Chung et al](https://github.com/cmcdougall5/scRNAseq_pipeline). 
-*   [Mayran et al](https://github.com/cmcdougall5/scRNAseq_pipeline). 
-*   [Ho et al](https://github.com/cmcdougall5/scRNAseq_pipeline). 
-*   [Fletcher et al](https://github.com/cmcdougall5/scRNAseq_pipeline). 
+*   [Chung et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE120410). 
+*   [Mayran et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi). 
+*   [Ho et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi). 
+*   [Fletcher et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE132224). 
 
 Details on the data acquisition is described within the following publications:
 
