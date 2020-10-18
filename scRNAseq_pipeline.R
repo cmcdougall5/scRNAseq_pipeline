@@ -80,7 +80,7 @@ data <- SCTransform(data,vars.to.regress = "percent.mt")#, verbose = FALSE )
 data <- RunPCA(data,verbose= FALSE) 
 
 #Do we need to keep all PCs, or is majority of data captured by a certain point?
-#ElbowPlot(data, ndims=30)
+ElbowPlot(data, ndims=30)
 
 #UMAP dimensional reduction of the identified PCs
 data <- RunUMAP(data, dims=1:30, umap.method = "umap-learn", metric = "correlation", verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
