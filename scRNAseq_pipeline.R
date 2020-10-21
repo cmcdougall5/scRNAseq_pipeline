@@ -1,23 +1,12 @@
 # scRNAseq data analysis
 
-############## precursor, set the directories to save to and read data from:
+#This script is designed to examine single cell RNA sequence data found in 10x files.
 
-#set the working directory to directory wish to save analysis results to
-setwd("/Users/craigmcdougall/Documents/Project 2/Data analysis/Cheung")
+#Please see pipeline guide for further details and step by step walk through.
 
-#check working directory
-getwd()
-
-
-#define the data directory where the data is held
-data.dir <- "/Users/craigmcdougall/Documents/Project 2/Data/Cheung"
-
-#list all the files in the data directory: barcodes, genes, matrix
-list.files(data.dir)
-#have now seen that the files are there
-
-############################# 1. Call libraries
-#libraries required throughought the script
+############################# 1. Call libraries & set directories
+#libraries required throughout the script
+library(here)
 library(dplyr)
 library(Seurat)
 library(patchwork)
@@ -25,10 +14,19 @@ library(sctransform)
 library(ggplot2)
 library(scales)
 
+#set the working directory to directory wish to read data from and save analysis results to
+data.dir <- setwd(here::here())
+#check working directory
+getwd()
+
+#list all the files in the data directory, expect barcodes, genes, matrix
+list.files(data.dir)
+#have now seen that the files are there and ok to proceed
+
 ############################ 2. Load the data  
 
-#load raw data using Read10x 
-raw.data <- Read10X(data.dir=data.dir)
+#load raw data using Read10x, this will be relative to your path, name desired folder e.g.  "Cheung Data"
+raw.data <- Read10X("Cheung Data")
 
 #initialise a Seurat object with the raw (not normalised) data. This is a count matrix
 data <- CreateSeuratObject(counts=raw.data, project = "data", min.cells = 3, min.features = 200) 
@@ -57,17 +55,13 @@ plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"
 #then plot
 plot1 + plot2
 
+#use QC plots to inform which cells should be excluded on quality basis (low quality, double counts)
+#use subset function to do this
+
+data <- subset(data, subset = nFeature_RNA > 200 & nFeature_RNA <2500 & percent.mt < 5)
+
 ############################4. Apply SCTransform normalisation (Filter, normalise, regress & detect variable genes)
 #SCTransform replaces Normalizedata, ScaleData and FindVariableFeature functions in older revisions of script
-
-#use QC plots to inform which cells should be excluded below
-#SCTransform parameters:
-  #Filter out cells which have less than this many genes expressed [200]
-  #Filter out cells which have higher unique gene count [2500]
-  #Filter out cells which have higher mitochondrial transcript percentage [5]
-  #Regress out cell cycle differences [no]
-  #Number of variable features to return [3000]
-
 
 #run sctransform, remove mitochondrial data by regressing it out
 data <- SCTransform(data,vars.to.regress = "percent.mt")#, verbose = FALSE )
