@@ -114,9 +114,9 @@ data <- subset(data, subset = nFeature_RNA > 200 & nFeature_RNA <2500 & percent.
 ```
 ## Step 4.  Transform the data
 
-With the data visualised, it must be;
+With the data visualised and trimmed, it must be;
 
-* Filtered to remove damaged cells and double counts.
+
 * Normalised to ensure all genes carry equal weight going forward and prevent heavily expressing genes from being over represented.
 * Regressed to remove confounding factors such as areas mapped to the mitochondrial genome.
 * Assessed for variable genes. 
