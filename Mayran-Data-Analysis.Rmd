@@ -23,7 +23,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-This document details the analysis of the single RNA sequence data by [Mayran et al](https://www.nature.com/articles/s41467-019-11791-9). available from [Mayran et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
+This document details the analysis of the single RNA sequence data by [Mayran et al](https://www.nature.com/articles/s41467-019-11791-9). available from [NCBI](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
 
 ## Step 1. Call Libraries & Set Directories
 
@@ -76,7 +76,7 @@ data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.mt")
 
 #use QC metrics to filter the cells
 #visualise the QC metrics - use a violin plot 
-VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
 
 #make the plots
 plot1 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "percent.mt")
@@ -85,16 +85,16 @@ plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"
 plot1 + plot2
 ```
 
-The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Mayran data,there are clearly two sepearte features in the feature data, so all cells below 1000 counts are dropped and cells with >5% mitochondrial DNA are also dropped.
+The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Mayran data,there are clearly two separate features in the nfeature data, so all cells below 1200 counts and above 4000 counts are dropped and cells with >5% mitochondrial DNA are also dropped.
 
 ```{r Subset the data, include=FALSE }
-data <- subset(data, subset = nFeature_RNA > 1000  & percent.mt < 5)
+data <- subset(data, subset = nFeature_RNA > 1200 & nFeature_RNA < 4000 & percent.mt < 5)
 
 ```
 \newpage
 ## Step 3.  Transform the data
 
-With the data trimmed to exclued lower quality cells, it must be;
+With the data trimmed to exclude lower quality cells, it must be;
 
 * Normalised to ensure all genes carry equal weight going forward and prevent heavily expressing genes from being over represented.
 * Regressed to remove confounding factors such as areas mapped to the mitochondrial genome.
@@ -130,7 +130,7 @@ Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensi
 
 ``` {r Perform dimensional reduction (UMAP), include=FALSE }
 
-#UMAP dimensional reduction of the identified PCs, only first 20 PCs
+#UMAP dimensional reduction of the identified PCs, change dims!
 data <- RunUMAP(data, dims=1:17, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
 
 ```
@@ -144,8 +144,8 @@ The first stage in clustering the cells is to establish a shared nearest neighbo
 The clusters cn then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
 
 ```{r Perform clustering, echo=FALSE}
-#Find nearest neighbours
-data <- FindNeighbors(data, dims=1:30, verbose=FALSE)
+#Find nearest neighbours, change dims!
+data <- FindNeighbors(data, dims=1:17, verbose=FALSE)
 
 #CLuster based on neighbour distances
 data <- FindClusters(data, verbose=FALSE)
@@ -217,7 +217,7 @@ FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2)&
 
 ```
 
-These plots would suggest cluster 6 (of 16) is the most likely corticotroph cluster.
+These plots would suggest cluster 6 (of 15) is the most likely corticotroph cluster.
 
 \newpage
 ## Step 7. Isolate desired cell cluster
@@ -262,12 +262,24 @@ To investigate cell homogeneity within the cell cluster of interest, the same pr
 #PCA to identify PCs
 cortico <- RunPCA(cortico,verbose= FALSE) 
 
-#dimensional reduction
-#UMAP dimensional reduction of the identified PCs
-cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+```
+Elbow plot to establish dimensionality;
 
-#Find nearest neighbours
-cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
+``` {r elbow 2, echo = FALSE,fig.height=3.5}
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(data, ndims=30)
+
+```
+
+Identify most of information retained in 17 PCs
+
+``` {r dimension reduction on reclustyer, include = FALSE}
+#dimensional reduction
+#UMAP dimensional reduction of the identified PCs, change dims!
+cortico <- RunUMAP(cortico, dims=1:17, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+
+#Find nearest neighbours, change dims!
+cortico <- FindNeighbors(cortico, dims=1:17, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
@@ -302,13 +314,18 @@ df <- cortico.markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
 ```
 
 ``` {r differential expression summary, echo=FALSE,message=FALSE}
-head(df)
+head(df,10)
 
 ```
 \newpage
 ## 9. Summary
 
-This analysis based on 17 of 30 possible principal components shows cluster 6 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with three visible sub clusters.A differential analysis of these three clusters shows the top differentiated genes in each cluster to be Jun & Tnnt1 in cluster zero, Pomc & Nmb in cluster one and Srxn1 & Mt2 in cluster three.  
+This analysis based on 17 of 30 possible principal components shows cluster 6 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with five visible sub clusters.A differential analysis of these three clusters shows the top differentiated genes in each cluster to be Srxn1 & Mt2 in cluster zero, Jun & Tnnt2 in cluster one, Dusp2 in cluster 2, Nmb & Pomc in cluster 3 and Chga and Gadd45g in cluster four.
+
+Only cluster zero and three appear to show statistically significant levels of differential expression, these being Srxn1 & Mt2 in cluster zero and Pomc & Nmb in cluster three.
+
+
+
 
 
 
