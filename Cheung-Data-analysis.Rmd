@@ -76,7 +76,7 @@ data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.mt")
 
 #use QC metrics to filter the cells
 #visualise the QC metrics - use a violin plot 
-VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
 
 #make the plots
 plot1 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "percent.mt")
@@ -130,7 +130,7 @@ Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensi
 
 ``` {r Perform dimensional reduction (UMAP), include=FALSE }
 
-#UMAP dimensional reduction of the identified PCs, only first 20 PCs
+#UMAP dimensional reduction of the identified PCs, only first 20 PCs,   #change dims!
 data <- RunUMAP(data, dims=1:20, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
 
 ```
@@ -143,9 +143,9 @@ The first stage in clustering the cells is to establish a shared nearest neighbo
 
 The clusters cn then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
 
-```{r Perform clustering, echo=FALSE}
-#Find nearest neighbours
-data <- FindNeighbors(data, dims=1:30, verbose=FALSE)
+```{r Perform clustering, echo=FALSE}  
+#Find nearest neighbours     #change dims!
+data <- FindNeighbors(data, dims=1:20, verbose=FALSE)
 
 #CLuster based on neighbour distances
 data <- FindClusters(data, verbose=FALSE)
@@ -217,7 +217,7 @@ FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2)&
 
 ```
 
-These plots would suggest cluster 12 (of 20) is the most likely corticotroph cluster.
+These plots would suggest cluster 12 (of 18) is the most likely corticotroph cluster.
 
 \newpage
 ## Step 7. Isolate desired cell cluster
@@ -228,7 +228,7 @@ The desired cluster must be manually entered upon visual inspection of the gene 
 ``` {r isolate desired cells, echo=FALSE}
 #enter the cotricoph cell ids, found in visualisation. Note change to correct cluster #s or will miss-match
 #new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22")
-new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","cort","13","14","15","16","17","18","19","20")
+new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","cort","13","14","15","16","17","18")
 
 names(new.cluster.ids) <- levels(data)
 ```
@@ -256,23 +256,37 @@ To investigate cell homogeneity within the cell cluster of interest, the same pr
 *Identification of nearest neighbours (SNN)
 *Clustering using SNN.
 
+
 ``` {r re-cluster selected cluster, include=FALSE}
 
 #dimensional analysis
 #PCA to identify PCs
 cortico <- RunPCA(cortico,verbose= FALSE) 
 
-#dimensional reduction
-#UMAP dimensional reduction of the identified PCs
-cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+```
+Elbow plot to establish dimensionality;
 
-#Find nearest neighbours
-cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
+``` {r elbow 2, echo = FALSE,fig.height=3.5}
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(data, ndims=30)
+
+```
+
+Identify most of information retained in 20 PCs
+
+``` {r dimension reduction on reclustyer, include = FALSE}
+#dimensional reduction
+#UMAP dimensional reduction of the identified PCs, change dims!
+cortico <- RunUMAP(cortico, dims=1:20, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+
+#Find nearest neighbours, change dims!
+cortico <- FindNeighbors(cortico, dims=1:20, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
 
 ```
+
 
 A dimensional reduction plot can then reveal any heterogeneity in the cluster;
 
@@ -308,7 +322,7 @@ head(df)
 \newpage
 ## 9. Summary
 
-This analysis based on 20 of 30 possible principal components shows cluster 12 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with three visible sub clusters.A differential analysis of these three clusters shows the top differentiated genes in each cluster to be Ndufa4 & Pomc in cluster zero, Dnajb1 & Npas4 in cluster one and Mt1 & Mt2 in cluster three.  
+This analysis based on 20 of 30 possible principal components shows cluster 12 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with three visible sub clusters.A differential gene expression analysis of these three sub-clusters shows the top differentiated genes in each cluster to be Ndufa4 & Pomc in cluster zero, Dnajb1 & Hspb1 in cluster one and Mt1 & Mt2 in cluster three.  
 
 
 
