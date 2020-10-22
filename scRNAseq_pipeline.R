@@ -1,29 +1,24 @@
-# scRNAseq data analysis
 
-#This script is designed to examine single cell RNA sequence data found in 10x files.
 
-#Please see pipeline guide for further details and step by step walk through.
+## Step 1. Call Libraries & Set Directories
 
-############################# 1. Call libraries & set directories
-#libraries required throughout the script
-library(here)
-library(dplyr)
+library(dplyr) 
 library(Seurat)
 library(patchwork)
 library(sctransform)
 library(ggplot2)
 library(scales)
 
+
+
 #set the working directory to directory wish to read data from and save analysis results to
 data.dir <- setwd(here::here())
 #check working directory
 getwd()
 
-#list all the files in the data directory, expect barcodes, genes, matrix
+#list all the files in the data directory, to make sur this is where we expect to be
 list.files(data.dir)
 #have now seen that the files are there and ok to proceed
-
-############################ 2. Load the data  
 
 #load raw data using Read10x, this will be relative to your path, name desired folder e.g.  "Cheung Data"
 raw.data <- Read10X("Cheung Data")
@@ -31,23 +26,18 @@ raw.data <- Read10X("Cheung Data")
 #initialise a Seurat object with the raw (not normalised) data. This is a count matrix
 data <- CreateSeuratObject(counts=raw.data, project = "data", min.cells = 3, min.features = 200) 
 
-######################### 3. Data visualisation/Quality Control plots
 
-#QC: selecting cells for analysis
-  #- # genes per cell (id low quality cells or multiple reads)
-  #- total # molecules in a cell
-  #- % of reads that map to mitochondrial genome - confounding source of variation
-
-#store mitochoindrial % in the Seurat object meta data
-#Seurat recommends MT- prefix for mitochondria data
-#cheung, ho, mayran use mt
+## Step 2. Quality control plots
+#Seurat recommends percent.MT label for mitochondria data, however;
+#Cheung, Ho & Mayran et.al. use "percent.mt"
 data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.mt")
-#Fletcher uses Mt-
+#Fletcher uses "percent.Mt"
 #data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.MT")
+#select appropriate method and comment out other option
 
 #use QC metrics to filter the cells
 #visualise the QC metrics - use a violin plot 
-VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
 
 #make the plots
 plot1 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "percent.mt")
@@ -55,61 +45,60 @@ plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"
 #then plot
 plot1 + plot2
 
-#use QC plots to inform which cells should be excluded on quality basis (low quality, double counts)
-#use subset function to do this
 
-data <- subset(data, subset = nFeature_RNA > 200 & nFeature_RNA <2500 & percent.mt < 5)
+#The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Cheung data, all cells below 200 counts are dropped and cells with >5% mitochondrial DNA are also dropped.
 
-############################4. Apply SCTransform normalisation (Filter, normalise, regress & detect variable genes)
-#SCTransform replaces Normalizedata, ScaleData and FindVariableFeature functions in older revisions of script
 
-#run sctransform, remove mitochondrial data by regressing it out
+data <- subset(data, subset = nFeature_RNA > 200  & percent.mt < 5)
+
+
+## Step 3.  Transform the data
+
+
 data <- SCTransform(data,vars.to.regress = "percent.mt")#, verbose = FALSE )
 
 
-##################### 5. Dimensional reduction 
+## Step 4. Dimensional reduction
 
-#PCA to identify PCs
-#run PCA following new Seurat standard steps:https://satijalab.org/seurat/v3.1/sctransform_vignette.html
+
 data <- RunPCA(data,verbose= FALSE) 
+
+
 
 #Do we need to keep all PCs, or is majority of data captured by a certain point?
 ElbowPlot(data, ndims=30)
 
-#UMAP dimensional reduction of the identified PCs
-data <- RunUMAP(data, dims=1:30, umap.method = "umap-learn", metric = "correlation", verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
 
-#################### 6. Clustering
-#Find nearest neighbours
-data <- FindNeighbors(data, dims=1:30, verbose=FALSE)
+
+#UMAP dimensional reduction of the identified PCs, only first 20 PCs,   #change dims!
+data <- RunUMAP(data, dims=1:20, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
+
+
+
+
+## Step 5. Clustering
+
+
+#Find nearest neighbours     #change dims!
+data <- FindNeighbors(data, dims=1:20, verbose=FALSE)
 
 #CLuster based on neighbour distances
 data <- FindClusters(data, verbose=FALSE)
 
+
 #plot the clusters
 DimPlot(data, label=TRUE) + NoLegend()
 
-
-#########################  7. attributing cell type
-#how well do the clusters approximate the cell types?
-#This is done manually by examination of feature plot 
-#Done by cell expression, classification criteria (only really care about corticotrophs, but other plots usefull to exclude cluster)
-#gene information from FLetcher & cheung papers:
-# Thyrotrophs (Pou1f1 + Tshb),
-# Somatotrophs(Pou1f1 + Gh)
-# Lactotrophs (Pou1f1 + Prl)
-# Gonadotrophs (Lhb)
-# Melanotrophs (Pomc + Pcsk2 + Pax7)
-#Corticotrophs (Pomc + Crhr1 + Avpr1b + Gpc5 - Pcsk2 - Pax7)
+## Step 6. Cell Type assessment
 
 #Visualise the canonical marker genes 
 
-#first exclude Pou1f1 expressing cells (Thyrotrophs, SOmatotrophs, Lactotrophs)
-FeaturePlot(data, features = c("Pou1f1","Tshb", "Gh","Prl"), pt.size = 0.2)&scale_color_viridis_c() 
+#first exclude Pou1f1 expressing cells (Thyrotrophs, Somatotrophs, Lactotrophs)
+FeaturePlot(data, features = c("Pou1f1","Tshb", "Gh","Prl"), pt.size = 0.2)&scale_color_viridis_c()
 
 #then exclude the gonadotrophs
-FeaturePlot(data, features = c("Lhb"), pt.size = 0.2)&scale_color_viridis_c() 
+FeaturePlot(data, features = c("Lhb"), pt.size = 0.2)&scale_color_viridis_c()
 
 #then exclude the melanotrophs
 FeaturePlot(data, features = c("Pomc","Pax7","Pcsk2"), pt.size = 0.2)&scale_color_viridis_c() 
@@ -118,46 +107,81 @@ FeaturePlot(data, features = c("Pomc","Pax7","Pcsk2"), pt.size = 0.2)&scale_colo
 FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2)&scale_color_viridis_c() 
 
 
+#These plots would suggest cluster 12 is the most likely corticotroph cluster.
 
-####################### 8. pull out the corticotrophs
+
+
+## Step 7. Isolate desired cell cluster
+
+
 #enter the cotricoph cell ids, found in visualisation. Note change to correct cluster #s or will miss-match
 #new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22")
-new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","cort","15","16","17","18","19","20","21","22")
+new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","cort","13","14","15","16","17","18")
 
 names(new.cluster.ids) <- levels(data)
-
+#Rename the cluster
 data <- RenameIdents(data, new.cluster.ids)
 #then put on the plot to confirm slected the correct one (sanity check)
 DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
-#or pull out a  seurat of cort only
+
+
+#differential analysis on corticotroph cluster
+#find all markers for cort cluster that make it different from all other clusters
+cort.markers <- FindMarkers(data, ident.1="cort", min.pct=0.25)
+
+#display top 10 markers differentially expressed by the corticotroph cluster
+head(cort.markers, n=10)
+
+
+
+#finally pulll out the corticotroph cluster
 cortico <- subset(data, idents = "cort")
 
-##################### 9. Re-cluster the corticotrophs only
 
+## Step 8. Re-cluster corticotroph cluster and study cluster homogeneity
+
+#perform process again on the corticotroph cluster
 #dimensional analysis
 #PCA to identify PCs
 cortico <- RunPCA(cortico,verbose= FALSE) 
 
-#dimensional reduction
-#UMAP dimensional reduction of the identified PCs
-cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
-#Find nearest neighbours
-cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(cortico, ndims=30)
+
+
+#dimensional reduction
+#UMAP dimensional reduction of the identified PCs, change dims!
+cortico <- RunUMAP(cortico, dims=1:12, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+
+#Find nearest neighbours, change dims!
+cortico <- FindNeighbors(cortico, dims=1:12, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
 
+
+
+#A dimensional reduction plot can then reveal any heterogeneity in the cluster;
 #plot the clusters
 DimPlot(cortico, pt.size = 5, label=TRUE) + NoLegend()
 
+
+#A featureplot can be used to examine gene expression levels across these clusters within the corticotroph data;
 #Visualise the canonical marker genes 
-FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color_viridis_c() 
+FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color_viridis_c()
+
 
 #examine DE genes in the  corticotroph cluster
 #find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
 cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
 cortico.markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
+
+
+
+
+
+
 
 
