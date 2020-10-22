@@ -85,10 +85,11 @@ plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"
 plot1 + plot2
 ```
 
-The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Mayran data,there are clearly two separate features in the feature data, so all cells below 20 counts are dropped and cells with >5% mitochondrial DNA are also dropped. Also drop features > 1900 counts, as there appears to be a second feature.
+The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Mayran data,there are clearly two separate features in the feature data, so all cells below 20 counts are dropped and cells with >5% mitochondrial DNA are also dropped. 
 
-```{r Subset the data, include=FALSE }
-data <- subset(data, subset = nFeature_RNA > 200 & nFeature_RNA < 1900 & percent.mt < 5)
+```{r Subset the data, include=FALSE } 
+#Also drop features > 1900 counts, as there appears to be a second feature.# & nFeature_RNA < 1900
+data <- subset(data, subset = nFeature_RNA > 200  & percent.mt < 5)
 
 ```
 \newpage
@@ -124,14 +125,14 @@ ElbowPlot(data, ndims=30)
 
 ```
 
-The elbow plot shows that the majority of the information is captured within the first 16 Principal components, so the last 10 are dropped during the next stage.
+The elbow plot shows that the majority of the information is captured within the first 17 Principal components, so the last 10 are dropped during the next stage.
 
 Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensional reduction and is applied on the first 17 principal components established in the first step.
 
 ``` {r Perform dimensional reduction (UMAP), include=FALSE }
 
-#UMAP dimensional reduction of the identified PCs, only first 20 PCs
-data <- RunUMAP(data, dims=1:16, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
+#UMAP dimensional reduction of the identified PCs, only first 20 PCs chnage dims!
+data <- RunUMAP(data, dims=1:17, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
 
 ```
 
@@ -144,8 +145,8 @@ The first stage in clustering the cells is to establish a shared nearest neighbo
 The clusters cn then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
 
 ```{r Perform clustering, echo=FALSE}
-#Find nearest neighbours
-data <- FindNeighbors(data, dims=1:16, verbose=FALSE)
+#Find nearest neighbours #change pcs!
+data <- FindNeighbors(data, dims=1:17, verbose=FALSE)
 
 #CLuster based on neighbour distances
 data <- FindClusters(data, verbose=FALSE)
@@ -219,9 +220,7 @@ FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2) 
 
 ```
 
-These plots would suggest cluster 5 (of 10) is the most likely corticotroph cluster. Cluster two is also a candidate, however this appears to be a mix of all cell types.
-
-Try and examine cluster 5 on its own, to try and extract corticotrophs in a more robust manner.
+These plots would suggest cluster 7 (of 10) is the most likely corticotroph cluster.
 
 \newpage
 ## Step 7. Isolate desired cell cluster
@@ -232,7 +231,7 @@ The desired cluster must be manually entered upon visual inspection of the gene 
 ``` {r isolate desired cells, echo=FALSE}
 #enter the cotricoph cell ids, found in visualisation. Note change to correct cluster #s or will miss-match
 #new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22")
-new.cluster.ids <- c("0", "1", "2", "3", "4", "cort", "6","7","8","9","10")
+new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","cort","8","9","10")
 
 names(new.cluster.ids) <- levels(data)
 ```
@@ -275,15 +274,15 @@ ElbowPlot(data, ndims=30)
 
 ```
 
-Identify most of information retained in 15 PCs
+Identify most of information retained in 17 PCs
 
 ``` {r dimension reduction on reclustyer, include = FALSE}
 #dimensional reduction
-#UMAP dimensional reduction of the identified PCs
-cortico <- RunUMAP(cortico, dims=1:15, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+#UMAP dimensional reduction of the identified PCs #change dims!
+cortico <- RunUMAP(cortico, dims=1:17, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
-#Find nearest neighbours
-cortico <- FindNeighbors(cortico, dims=1:15, verbose=FALSE)
+#Find nearest neighbours #change dims!
+cortico <- FindNeighbors(cortico, dims=1:17, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
@@ -310,5 +309,5 @@ FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color
 \newpage
 ## 8. Summary
 
-This analysis based on 16 of 30 possible principal components suggests cluster 5 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell homogeneity with no visible sub clusters.
+This analysis based on 17 of 30 possible principal components suggests cluster 7 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell homogeneity with no visible sub clusters.
 
