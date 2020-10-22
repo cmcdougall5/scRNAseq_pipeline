@@ -124,7 +124,7 @@ ElbowPlot(data, ndims=30)
 
 ```
 
-The elbow plot shows that the majority of the information is captured within the first 17 Principal components, so the last 10 are dropped during the next stage.
+The elbow plot shows that the majority of the information is captured within the first 17 Principal components, so the last 13 are dropped during the next stage.
 
 Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensional reduction and is applied on the first 17 principal components established in the first step.
 
@@ -267,19 +267,19 @@ Elbow plot to establish dimensionality;
 
 ``` {r elbow 2, echo = FALSE,fig.height=3.5}
 #Do we need to keep all PCs, or is majority of data captured by a certain point?
-ElbowPlot(data, ndims=30)
+ElbowPlot(cortico, ndims=30)
 
 ```
 
-Identify most of information retained in 17 PCs
+Identify most of information retained in 11 PCs
 
 ``` {r dimension reduction on reclustyer, include = FALSE}
 #dimensional reduction
 #UMAP dimensional reduction of the identified PCs, change dims!
-cortico <- RunUMAP(cortico, dims=1:17, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+cortico <- RunUMAP(cortico, dims=1:11, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
 #Find nearest neighbours, change dims!
-cortico <- FindNeighbors(cortico, dims=1:17, verbose=FALSE)
+cortico <- FindNeighbors(cortico, dims=1:11, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
@@ -294,7 +294,7 @@ DimPlot(cortico, pt.size = 5, label=TRUE) + NoLegend()
 
 ```
 
-A featureplot can be used to examine gene expression levels across these clusters within the corticotroph data;
+A featureplot can be used to examine gene expression levels across these sub-clusters within the corticotroph data;
 
 ``` {r clustre Pomc expression- could be any gene! , echo=FALSE,fig.height=3.5, message=FALSE}
 #Visualise the canonical marker genes 
@@ -320,9 +320,8 @@ head(df,10)
 \newpage
 ## 9. Summary
 
-This analysis based on 17 of 30 possible principal components shows cluster 6 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with five visible sub clusters.A differential analysis of these three clusters shows the top differentiated genes in each cluster to be Srxn1 & Mt2 in cluster zero, Jun & Tnnt2 in cluster one, Dusp2 in cluster 2, Nmb & Pomc in cluster 3 and Chga and Gadd45g in cluster four.
+This analysis based on 17 of 30 possible principal components shows cluster 6 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with five visible sub clusters.A differential analysis of these three clusters shows the top differentiated genes in each cluster to be Pomc & Nmb in cluster zero, Mt2 & Srxn1 in cluster one, Jun & Tnnt1 (not statistically significant) in cluster 2 and Chga (not statistically significant) & Gadd45g (not statistically significant) in cluster 3.
 
-Only cluster zero and three appear to show statistically significant levels of differential expression, these being Srxn1 & Mt2 in cluster zero and Pomc & Nmb in cluster three.
 
 
 
