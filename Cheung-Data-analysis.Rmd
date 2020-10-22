@@ -141,7 +141,7 @@ data <- RunUMAP(data, dims=1:20, umap.method = "umap-learn", metric = "correlati
 
 The first stage in clustering the cells is to establish a shared nearest neighbour (SNN) information for the data by calculating the overlap between each cell based on its k.parameters using a [Seurat function](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindNeighbors).
 
-The clusters cn then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
+The clusters can then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
 
 ```{r Perform clustering, echo=FALSE}  
 #Find nearest neighbours     #change dims!
@@ -268,19 +268,19 @@ Elbow plot to establish dimensionality;
 
 ``` {r elbow 2, echo = FALSE,fig.height=3.5}
 #Do we need to keep all PCs, or is majority of data captured by a certain point?
-ElbowPlot(data, ndims=30)
+ElbowPlot(cortico, ndims=30)
 
 ```
 
-Identify most of information retained in 20 PCs
+Identify most of information retained in 12 PCs
 
 ``` {r dimension reduction on reclustyer, include = FALSE}
 #dimensional reduction
 #UMAP dimensional reduction of the identified PCs, change dims!
-cortico <- RunUMAP(cortico, dims=1:20, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+cortico <- RunUMAP(cortico, dims=1:12, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
 #Find nearest neighbours, change dims!
-cortico <- FindNeighbors(cortico, dims=1:20, verbose=FALSE)
+cortico <- FindNeighbors(cortico, dims=1:12, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
