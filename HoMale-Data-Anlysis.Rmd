@@ -51,9 +51,9 @@ list.files(data.dir)
 #have now seen that the files are there and ok to proceed
 
 ```
-The raw count and gene data is read in from the 10X sequence data files described in [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x) and downloaded from [Ho et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
+The raw count and gene data is read in from the 10X sequence data files described in [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x) and downloaded from [NCBI](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
 
-For the Mayran analysis, the Mayran folder is indicted in the path.
+For the Ho analysis, the Ho folder is indicted in the path with the correct sex chosen.
 
 ```{r Loading in the Data & Initialising Seurat, include=FALSE}
 #load raw data using Read10x, this will be relative to your path, name desired folder e.g.  "Cheung Data"
@@ -220,7 +220,7 @@ FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2) 
 
 ```
 
-These plots would suggest cluster 7 (of 10) is the most likely corticotroph cluster.
+These plots would suggest cluster 7 is the most likely corticotroph cluster.
 
 \newpage
 ## Step 7. Isolate desired cell cluster
@@ -270,19 +270,19 @@ Elbow plot to establish dimensionality
 
 ``` {r elbow 2, echo = FALSE,fig.height=3.5}
 #Do we need to keep all PCs, or is majority of data captured by a certain point?
-ElbowPlot(data, ndims=30)
+ElbowPlot(cortico, ndims=30)
 
 ```
 
-Identify most of information retained in 17 PCs
+Need to select all PCs
 
 ``` {r dimension reduction on reclustyer, include = FALSE}
 #dimensional reduction
 #UMAP dimensional reduction of the identified PCs #change dims!
-cortico <- RunUMAP(cortico, dims=1:17, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
 #Find nearest neighbours #change dims!
-cortico <- FindNeighbors(cortico, dims=1:17, verbose=FALSE)
+cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
