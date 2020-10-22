@@ -85,7 +85,7 @@ plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA"
 plot1 + plot2
 ```
 
-The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Mayran data,there are clearly two separate features in the feature data, so all cells below 20 counts are dropped and cells with >5% mitochondrial DNA are also dropped. 
+The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). All cells below 200 counts are dropped and cells with >5% mitochondrial DNA are also dropped. 
 
 ```{r Subset the data, include=FALSE } 
 #Also drop features > 1900 counts, as there appears to be a second feature.# & nFeature_RNA < 1900
