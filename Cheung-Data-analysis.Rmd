@@ -208,7 +208,7 @@ FeaturePlot(data, features = c("Pomc","Pax7","Pcsk2"), pt.size = 0.2)&scale_colo
 ```
 
 \newpage
-Then confirm the identifiction of the corticotrophs by Pomc, Crh1, Avpr1b and Gpc5.
+Then confirm the identification of the corticotrophs by Pomc, Crh1, Avpr1b and Gpc5.
 
 ``` {r confirm corticotrophs, echo=FALSE,fig.height=3.5, message=FALSE}
 #Visualise the canonical marker genes 
@@ -217,7 +217,11 @@ FeaturePlot(data, features = c("Pomc", "Crhr1","Avpr1b","Gpc5"), pt.size = 0.2)&
 
 ```
 
-These plots would suggest cluster 12 (of 18) is the most likely corticotroph cluster.
+These plots would suggest cluster 12 is the most likely corticotroph cluster.
+
+
+
+
 
 \newpage
 ## Step 7. Isolate desired cell cluster
@@ -241,13 +245,28 @@ data <- RenameIdents(data, new.cluster.ids)
 DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
 ```
 
-And the data for the cluster of interest can be extracted for further study.
+Find the biomarkers for the corticotroph cluster compared to all other cells, what gene expression makes it different from the others? For a gene to be included in the differential expression for the cluster vs all other clusters, it must be expressed in at least 25% of the cells in the cluster `min.pct=0.25`. `Pct.1` is the percentage of cells in the cluster where the gene is detected, `pct.2` is the percentage of cells on average in all the other clusters where the gene is detected. 
+
+``` {r corticoph differential expression, echo=FALSE, message=FALSE}
+
+#find all markers for cort cluster that make it different from all other clusters
+cort.markers <- FindMarkers(data, ident.1="cort", min.pct=0.25)
+
+#display top 10 markers differentially expressed by the corticotroph cluster
+head(cort.markers, n=10)
+
+
+```
+
+
+
+The data for the corticotroph cluster is extracted for further study using `subset`.
 ``` {r pull out cluster, include=FALSE}
 cortico <- subset(data, idents = "cort")
 ```
 
 \newpage
-## Step 8. Re-cluster selected cell cluster
+## Step 8. Re-cluster corticotroph cluster and study cluster homogeneity
 
 To investigate cell homogeneity within the cell cluster of interest, the same procedure may be repeated;
 
@@ -322,7 +341,9 @@ head(df)
 \newpage
 ## 9. Summary
 
-This analysis based on 20 of 30 possible principal components shows cluster 12 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with three visible sub clusters.A differential gene expression analysis of these three sub-clusters shows the top differentiated genes in each cluster to be Ndufa4 & Pomc in cluster zero, Dnajb1 & Hspb1 in cluster one and Mt1 & Mt2 in cluster three.  
+This analysis based on 20 of 30 possible principal components identifies cluster 12 to be the corticotophs based on expression of canonical markers. Differential expression analysis showed the top differentially expressed gene found in 90% of corticodroh cells (and 16% of all other cells) was AW551984.
+
+When re-clustered, the corticotrophs demonstrate cell heterogeneity with three visible sub clusters. A differential gene expression analysis of these three sub-clusters shows the top differentiated genes in each cluster to be Ndufa4 & Pomc in cluster zero, Dnajb1 & Hspb1 in cluster one and Mt1 & Mt2 in cluster three.  
 
 
 
