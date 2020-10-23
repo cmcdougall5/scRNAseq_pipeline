@@ -23,7 +23,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-This document details the analysis of the single RNA sequence data by [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x). available from [Ho et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
+This document details the analysis of the single RNA sequence data by [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x). available from [NCBI](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
 
 ## Step 1. Call Libraries & Set Directories
 
@@ -125,7 +125,7 @@ ElbowPlot(data, ndims=30)
 
 ```
 
-The elbow plot shows that the majority of the information is captured within the first 17 Principal components, so the last 10 are dropped during the next stage.
+The elbow plot shows that the majority of the information is captured within the first 17 Principal components, so the last 13 are dropped during the next stage.
 
 Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensional reduction and is applied on the first 17 principal components established in the first step.
 
@@ -244,11 +244,25 @@ data <- RenameIdents(data, new.cluster.ids)
 DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
 ```
 
-And the data for the cluster of interest can be extracted for further study.
+Find the biomarkers for the corticotroph cluster compared to all other cells, what gene expression makes it different from the others? For a gene to be included in the differential expression for the cluster vs all other clusters, it must be expressed in at least 25% of the cells in the cluster `min.pct=0.25`. `Pct.1` is the percentage of cells in the cluster where the gene is detected, `pct.2` is the percentage of cells on average in all the other clusters where the gene is detected. 
+
+``` {r corticoph differential expression, echo=FALSE, message=FALSE}
+
+#find all markers for cort cluster that make it different from all other clusters
+cort.markers <- FindMarkers(data, ident.1="cort", min.pct=0.25)
+
+#display top 10 markers differentially expressed by the corticotroph cluster
+head(cort.markers, n=10)
+
+
+```
+
+
+
+The data for the corticotroph cluster is extracted for further study using `subset`.
 ``` {r pull out cluster, include=FALSE}
 cortico <- subset(data, idents = "cort")
 ```
-
 \newpage
 ## Step 8. Re-cluster selected cell cluster
 
@@ -309,5 +323,10 @@ FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color
 \newpage
 ## 8. Summary
 
-This analysis based on 17 of 30 possible principal components suggests cluster 7 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell homogeneity with no visible sub clusters.
+This analysis based on 17 of 30 possible principal components suggests cluster 7 to be the corticotrophs. Cluster 3 appears to be a cluster containing all cell types at a high level, double count cluster? This could be a result of the broadened second feature in the violin plot. 
+
+Differential expression analysis showed the top differentially expressed gene found in 29% of corticodroph cells (and 1% of all other cells) was Khdrbs2.
+
+
+When re-clustered, the corticotrophs demonstrate cell homogeneity with no visible sub clusters.
 
