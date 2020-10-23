@@ -46,12 +46,12 @@ data.dir <- setwd(here::here())
 #check working directory
 getwd()
 
-#list all the files in the data directory, to make sur this is where we expect to be
+#list all the files in the data directory, to make sure this is where we expect to be
 list.files(data.dir)
 #have now seen that the files are there and ok to proceed
 
 ```
-The raw count and gene data is read in from the 10X sequence data files described in [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x) and downloaded from [Ho et al](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
+The raw count and gene data is read in from the 10X sequence data files described in [Ho et al](https://link.springer.com/article/10.1007/s13238-020-00705-x) and downloaded from [NCBI](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi).
 
 For the Ho analysis, the Ho folder is indicted in the path, with the correct sex chosen.
 
@@ -255,7 +255,22 @@ data <- RenameIdents(data, new.cluster.ids)
 DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
 ```
 
-And the data for the cluster of interest can be extracted for further study.
+Find the biomarkers for the corticotroph cluster compared to all other cells, what gene expression makes it different from the others? For a gene to be included in the differential expression for the cluster vs all other clusters, it must be expressed in at least 25% of the cells in the cluster `min.pct=0.25`. `Pct.1` is the percentage of cells in the cluster where the gene is detected, `pct.2` is the percentage of cells on average in all the other clusters where the gene is detected. 
+
+``` {r corticoph differential expression, echo=FALSE, message=FALSE}
+
+#find all markers for cort cluster that make it different from all other clusters
+cort.markers <- FindMarkers(data, ident.1="cort", min.pct=0.25)
+
+#display top 10 markers differentially expressed by the corticotroph cluster
+head(cort.markers, n=10)
+
+
+```
+
+
+
+The data for the corticotroph cluster is extracted for further study using `subset`.
 ``` {r pull out cluster, include=FALSE}
 cortico <- subset(data, idents = "cort")
 ```
@@ -274,7 +289,7 @@ To investigate cell homogeneity within the cell cluster of interest, the same pr
 
 #dimensional analysis
 #PCA to identify PCs
-cortico <- RunPCA(cortico,verbose= FALSE) 
+cortico <- RunPCA(cortico,verbose= FALSE, approx=FALSE) 
 
 ```
 Elbow plot to establish dimensionality
@@ -285,15 +300,15 @@ ElbowPlot(cortico, ndims=30)
 
 ```
 
-Identify most of information retained in 6 PCs
+Keep all PCS
 
 ``` {r dimension reduction on reclustyer, include = FALSE}
 #dimensional reduction
 #UMAP dimensional reduction of the identified PCs #change dims!
-cortico <- RunUMAP(cortico, dims=1:6, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
 
 #Find nearest neighbours #change dims!
-cortico <- FindNeighbors(cortico, dims=1:6, verbose=FALSE)
+cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
 
 #CLuster based on neighbour distances
 cortico <- FindClusters(cortico, verbose=FALSE)
@@ -335,7 +350,10 @@ head(df)
 \newpage
 ## 9. Summary
 
-This analysis based on 14 of 30 possible principal components shows cluster 6 to be the corticotophs. When re-clustered, the corticotrophs demonstrate cell heterogeneity with two visible sub clusters.A differential gene expression analysis of these three sub-clusters shows the top differentiated genes in each cluster to be Meg3 & Malat1 (not statistically significant) in cluster zero and Rps18-ps3 & Mif in cluster one.  
+This analysis based on 14 of 30 possible principal components suggests cluster 6 to be the corticotrophs. Differential expression analysis showed the top differentially expressed gene found in 81% of corticodroh cells (and 1% of all other cells) was Rpl10l.
+
+
+When re-clustered, the corticotrophs demonstrate cell heterogeneity with two visible sub clusters.A differential gene expression analysis of these three sub-clusters shows the top differentiated genes in each cluster to be Meg3 & Malat1 (not statistically significant) in cluster zero and Rps18-ps3 & Mif in cluster one.  
 
 
 
