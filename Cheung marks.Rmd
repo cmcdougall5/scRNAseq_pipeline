@@ -1,0 +1,649 @@
+---
+title: "Pituitary corticotroph gene expression analysis"
+subtitle: "Cheung et al scRNA seq dataset"
+author: "Craig McDougall"
+date: "October 2020"
+#set figure widths
+#output: html_document
+#output: 
+# html_document:
+#    toc: true
+output: pdf_document
+#output: ioslides_presentation
+  
+---
+
+```{r setup,  include=FALSE}
+#echo r code in markdown output,
+knitr::opts_chunk$set(echo = TRUE)
+ 
+```
+
+
+
+## Introduction
+
+This document details the analysis of the single RNA sequence data by [Chung et.al. 2018](https://academic.oup.com/endo/article/159/12/3910/5133692). available from [the NCBI gene expression omnibus](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE120410).
+
+## Step 1. Call Libraries & Set Directories
+
+Before the main body of the pipeline is run, all of the required libraries are called and 
+
+```{r Initialising required libraries, include =FALSE}
+
+library(dplyr) 
+library(Seurat)
+library(patchwork)
+library(sctransform)
+library(ggplot2)
+library(scales)
+```
+
+the working directories are then set.
+``` {r Set Directories, include = FALSE}
+#set the working directory to directory wish to read data from and save analysis results to
+data.dir <- setwd(here::here())
+```
+The raw count and gene data is read in from the 10X sequence data files described in [Chung et.al. 2018](https://academic.oup.com/endo/article/159/12/3910/5133692) and downloaded from [the NCBI gene expression omnibus](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE120410).
+
+For the Cheung analysis, the Cheung folder is indicted in the path.
+
+```{r Loading in the Data & Initialising Seurat, include=FALSE}
+#load raw data using Read10x, this will be relative to your path, name desired folder e.g.  "Cheung Data"
+raw.data <- Read10X("Cheung Data")
+
+#initialise a Seurat object with the raw (not normalised) data. This is a count matrix
+data <- CreateSeuratObject(counts=raw.data, project = "data", min.cells = 3, min.features = 200) 
+```
+\newpage
+## Step 2. Quality control plots
+
+Before processing the data, some quality control plots are made to assess the quality of the data and explore confounding factors such as assessing the number of reads that map to mitochondrial genome.
+```{r Data visualisation/Quality control, echo=FALSE,fig.height=3.5}
+#Seurat recommends percent.MT label for mitochondria data, however;
+#Cheung, Ho & Mayran et.al. use "percent.mt"
+data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.mt")
+#Fletcher uses "percent.Mt"
+#data <- PercentageFeatureSet(data, pattern = "^mt-", col.name = "percent.MT")
+#select appropriate method and comment out other option
+
+#use QC metrics to filter the cells
+#visualise the QC metrics - use a violin plot 
+VlnPlot(data, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size=0)
+
+#make the plots
+plot1 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(data, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+#then plot
+plot1 + plot2
+```
+
+The QC plots to inform which cells should be excluded on quality basis (low quality, double counts). In the case of the Cheung data, all cells below 200 counts are dropped and cells with >5% mitochondrial DNA are also dropped.
+
+#``` {r Subset the data, include=FALSE }
+#data <- subset(data, subset = nFeature_RNA > 200  & percent.mt < 5)
+
+#```
+\newpage
+## Step 3.  Transform the data
+
+With the data trimmed to exclued lower quality cells, it must be;
+
+* Normalised to ensure all genes carry equal weight going forward and prevent heavily expressing genes from being over represented.
+* Regressed to remove confounding factors such as areas mapped to the mitochondrial genome.
+* Assessed for variable genes. 
+
+The [SCTransform](https://satijalab.org/seurat/v3.1/sctransform_vignette.html) function performs all of these actions and greatly simplifies the code, negating the use of four separate functions. 
+
+``` {r Perform Filtering, Normalisation, Regression and variable gene assessment, include=FALSE }
+data <- SCTransform(data,vars.to.regress = "percent.mt")#, verbose = FALSE )
+```
+
+\newpage
+## Step 4. Dimensional reduction
+
+The first step in dimensional reduction is to conduct principal component analysis (PCA) on the scaled data, using the variable features as the input. PCA transforms the from the table into new features known as principal components, which capture the information of the dataset in a new way.
+
+```{r Perform PCA, echo=FALSE}
+data <- RunPCA(data,verbose= FALSE) 
+
+```
+
+An elbow plot can be used to assess which principal components contain the majority of the information and identify which may be removed from the dataset;
+
+``` {r Plot Elbow, echo = FALSE,fig.height=3.5}
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(data, ndims=30)
+
+```
+
+
+
+``` {r Perform dimensional reduction (UMAP), include=FALSE }
+
+#UMAP dimensional reduction of the identified PCs, only first 20 PCs,   #change dims!
+data <- RunUMAP(data, dims=1:30, metric = "correlation", verbose=FALSE)
+
+```
+
+
+\newpage
+## Step 5. Clustering
+
+The first stage in clustering the cells is to establish a shared nearest neighbour (SNN) information for the data by calculating the overlap between each cell based on its k.parameters using a [Seurat function](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindNeighbors).
+
+The clusters can then be identified based on the SNN using a [clustering algorithm](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
+
+```{r Perform clustering, echo=FALSE}  
+#Find nearest neighbours     #change dims!
+data <- FindNeighbors(data, dims=1:30, verbose=FALSE)
+
+#CLuster based on neighbour distances
+data <- FindClusters(data, verbose=FALSE)#, resolution = 0.7 
+
+```
+Once the clusters have been established, they can be projected into two lower dimensional space using a [dimensional reduction plot](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/DimPlot) for visualisation.
+
+```{r Plot clusters, echo = FALSE,fig.height=3.5}
+
+#plot the clusters
+DimPlot(data, label=TRUE) + NoLegend()
+
+```
+
+\newpage
+## Step 6. Visualise cell expression
+
+ Now the lactotophs (Pou1f1 + Prl), 
+``` {r id lacto, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Agtr1b"), pt.size = 1)&scale_color_viridis_c()
+``` 
+
+ 
+ Now the somatotophs (Pou1f1 + Gh), 
+``` {r id somato, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Gh"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Ghrhr"), pt.size = 1)&scale_color_viridis_c()
+``` 
+ Now the "multi-hormonals", defined in Ho et al (Pou1f1, Prl, Gh, Tshb, Fshb, Lhb, Pomc), 
+``` {r id lacto, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Gh"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Tshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Fshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Lhb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+```
+Mki67+ from Ho et al 
+``` {r id Mki67+ cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Ghrhr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Top2a"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Mki67"), pt.size = 1)&scale_color_viridis_c()
+``` 
+ Now the gonadotophs (Lhb), 
+``` {r id gonado, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Fshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Lhb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Gnrhr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Cga"), pt.size = 1)&scale_color_viridis_c()
+``` 
+
+  Now the Melanotrophs (Pomc + Pcsk2 + Pax7),
+``` {r id melano, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Pcsk2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Pax7"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Tbx19"), pt.size = 1)&scale_color_viridis_c()
+
+``` 
+
+The Corticotrophs (Pomc + Crhr1 + Tbx19 - Pcsk2) 
+``` {r id cort, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+#Dont want any of this:
+FeaturePlot(data, features = c("Pcsk2"), pt.size = 1)&scale_color_viridis_c()
+#want these;
+FeaturePlot(data, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Crhr1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Avpr1b"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Tbx19"), pt.size = 1)&scale_color_viridis_c()
+
+```
+
+Stem cells (Sox2) 
+``` {r id stem, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Sox2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Fstl1"), pt.size = 1)&scale_color_viridis_c()
+```
+
+thyrotophs (Pou1f1 + Tshb), 
+``` {r id thyro, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Tshb"), pt.size = 1)&scale_color_viridis_c()
+```  
+
+connective tissue (collagen cells) (Col1a1) Folliculostellate cells in Ho pericytes in fletcher
+``` {r id connective tissues, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Fstl1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Col1a1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("S100b"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Fxyd1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Gstm2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Capn6"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Dcn"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Lum"), pt.size = 1)&scale_color_viridis_c()
+``` 
+
+ 
+white blood cells (C1qa) Macrophages in Ho paper leukocytes in fletcher
+``` {r id white blood cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("C1qa"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Ctss"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Cd53"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Tyrobp"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Fcer1g"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Laptm5"), pt.size = 1)&scale_color_viridis_c()
+```
+ 
+ 
+
+
+
+Endothilial cells (Pecam1) 
+``` {r id endothelia cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Pecam1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Plvap"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Aplnr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Emcm"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Clec14a"), pt.size = 1)&scale_color_viridis_c()
+```
+
+posteriour pituitary cells (Nkx2-1) 
+``` {r id posterior cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Nkx2-1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Gfap"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("S100b"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Avp"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Oxt"), pt.size = 1)&scale_color_viridis_c()
+
+FeaturePlot(data, features = c("Lhx2"), pt.size = 1)&scale_color_viridis_c()
+```
+
+Erythrocytes/red blood cells (Hbb-bt) 
+``` {r id red blood cellss, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(data, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(data, features = c("Hbb-bt"), pt.size = 1)&scale_color_viridis_c()
+
+FeaturePlot(data, features = c("Hba-a1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Hba-a2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(data, features = c("Hbb-b1"), pt.size = 1)&scale_color_viridis_c()
+```
+
+
+
+
+
+\newpage
+## Step 7. Attribute cell type 
+
+These plots would suggest the following attribution of cell type:
+
+ * Thyrotrophs;                  Cluster 20 
+ * Somatotrophs;                 Cluster 0,1,2,3,9,13,17,20  
+ * Lactotrophs;                  Cluster 4,5,6,8  
+ * Gonadotrophs;                 Cluster 7  
+ * Melanotrophs;                 Cluster 16  
+ * Corticotrophs;                Cluster 14,15  
+ * Stem cells;                   Cluster 10  
+ * Endothelial cells;            Cluster 11  
+ * Posteriour pituitary cells;   Cluster 22  
+ * Collagen cells;               Cluster 18  
+ * Red blood cells;              Cluster 21  
+ * White blood cells;            Cluster 19  
+ * Mki67+                        Cluster 12  
+ * Multi Hormonal                Cluster --
+ * Uncategorised                 Cluster -- 
+ 
+ 
+attribute cell types to the clusters
+``` {r name clusters, echo=FALSE}
+#enter the cotricoph cell ids, found in visualisation. Note change to correct cluster #s or will miss-match
+#new.cluster.ids <- c("0", "1", "2", "3", "4", "5", "6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22")
+new.cluster.ids <- c("Somatotroph","Somatotroph","Somatotroph","Somatotroph", "Lactotroph", "Lactotroph", "Lactotroph","Gonadotroph", "Lactotroph","Somatotroph","Stem Cells","Endothelial cells","Mki67+","Somatotroph","Corticotroph","Corticotroph","Melanotroph","Somatotroph","Collagen","WBC","Thyrotroph","RBC","posteriour pituitary")
+
+names(new.cluster.ids) <- levels(data)
+```
+
+plot clusters with new names
+``` {r re-plot clusters with names,fig.height=3.5, echo=FALSE}
+#Rename the cluster
+data <- RenameIdents(data, new.cluster.ids)
+#then put on the plot to confirm slected the correct one (sanity check)
+DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
+```
+Top differentially expressed gene for each cluster:
+```{r examin cluster differential expression, include=FALSE} 
+#examine DE genes in the   clusters
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
+markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+#examine top 2 deferentially expressed genes in each corticotroph cluster
+df <- markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
+
+```
+
+``` {r differential expression summary, echo=FALSE,message=FALSE}
+head(df, n=44)
+
+```
+
+\newpage
+## Step 8. Calculate cell proportions
+
+Find how many cells per cluster
+``` {r cells per cluster}
+#Use the Idents function
+cellscluster <- table(Idents(data))
+```
+
+How many cells total and per cluster?
+``` {r total cells}
+#Use the sum function
+cellstotal <- sum(cellscluster)
+# the L in values denotes that this is an integer
+
+#make cells per cluster a datafram  
+cellspercluster <- data.frame(cellscluster)
+```
+
+Percentage thyrotrophs
+``` {r % thyro}
+#Find the thyrotroph index
+thyroidx <- which(cellspercluster=="Thyrotroph")
+
+#pull out the number of thyrotrophs
+thyros <- cellspercluster[thyroidx,"Freq"]
+
+propthy <- (thyros/cellstotal)*100
+```
+
+Percentage somatotrophs
+``` {r % somatotrophs}
+#Find the somatotroph index
+somatoidx <- which(cellspercluster=="Somatotroph")
+
+#pull out the number of thyrotrophs
+somatos <- cellspercluster[somatoidx,"Freq"]
+
+propsom <- (somatos/cellstotal)*100
+```
+
+Percentage lactotrophs
+``` {r % lactotrophs}
+#Find the lactotroph index
+lactoidx <- which(cellspercluster=="Lactotroph")
+
+#pull out the number of thyrotrophs
+lactos <- cellspercluster[lactoidx,"Freq"]
+
+proplac <- (lactos/cellstotal)*100
+```
+
+Percentage Gonadotrophs
+``` {r % gonadotrophs}
+#Find the gonadotroph index
+gonadoidx <- which(cellspercluster=="Gonadotroph")
+
+#pull out the number of thyrotrophs
+gonados <- cellspercluster[gonadoidx,"Freq"]
+
+propgon <- (gonados/cellstotal)*100
+```
+
+Percentage Melanotrophs
+``` {r % melanotrophs}
+#Find the melanotroph index
+melanoidx <- which(cellspercluster=="Melanotroph")
+
+#pull out the number of thyrotrophs
+melanos <- cellspercluster[melanoidx,"Freq"]
+
+propmel <- (melanos/cellstotal)*100
+```
+
+Percentage corticotrophs
+``` {r % corticotrophs}
+#Find the corticotroph index
+cortidx <- which(cellspercluster=="Corticotroph")
+
+#pull out the number of thyrotrophs
+corts <- cellspercluster[cortidx,"Freq"]
+
+propcor <- (corts/cellstotal)*100
+```
+
+Percentage stem cells
+``` {r % stem cells}
+#Find the corticotroph index
+stemidx <- which(cellspercluster=="Stem Cells")
+
+#pull out the number of thyrotrophs
+stems <- cellspercluster[stemidx,"Freq"]
+
+propstem <- (stems/cellstotal)*100
+```
+
+Percentage endothelial cells
+``` {r % endothelial cells}
+#Find the corticotroph index
+endoidx <- which(cellspercluster=="Endothelial cells")
+
+#pull out the number of thyrotrophs
+endos <- cellspercluster[endoidx,"Freq"]
+
+propendo <- (endos/cellstotal)*100
+```
+
+Percentage posteriour pituitary cells
+``` {r % posteriour pituitary cells}
+#Find the corticotroph index
+postidx <- which(cellspercluster=="posteriour pituitary")
+
+#pull out the number of thyrotrophs
+posts <- cellspercluster[postidx,"Freq"]
+
+proppost <- (posts/cellstotal)*100
+```
+
+Percentage collagen cells
+``` {r % collagen cells}
+#Find the corticotroph index
+colidx <- which(cellspercluster=="Collagen")
+
+#pull out the number of thyrotrophs
+cols <- cellspercluster[colidx,"Freq"]
+
+propcol <- (cols/cellstotal)*100
+```
+
+
+Percentage red blood cells
+``` {r % red blood cells}
+#Find the corticotroph index
+rbcidx <- which(cellspercluster=="RBC")
+
+#pull out the number of thyrotrophs
+rbcs <- cellspercluster[rbcidx,"Freq"]
+
+proprbc <- (rbcs/cellstotal)*100
+```
+
+Percentage white blood cells
+``` {r % white blood cells}
+#Find the corticotroph index
+wbcidx <- which(cellspercluster=="WBC")
+
+#pull out the number of thyrotrophs
+wbcs <- cellspercluster[wbcidx,"Freq"]
+
+propwbc <- (wbcs/cellstotal)*100
+```
+
+Percentage Mki67+
+``` {r % Mki67+ blood cells}
+#Find the corticotroph index
+Mki67idx <- which(cellspercluster=="Mki67+")
+
+#pull out the number of thyrotrophs
+Mki67s <- cellspercluster[Mki67idx,"Freq"]
+
+propMki67 <- (Mki67s/cellstotal)*100
+```
+Percentage uncategorised
+``` {r % uncategorised cells}
+#Find the corticotroph index
+Uncategorisedidx <- which(cellspercluster=="Uncategorised")
+
+#pull out the number of thyrotrophs
+Uncategoriseds <- cellspercluster[Uncategorisedidx,"Freq"]
+
+propUncategorised <- (Uncategoriseds/cellstotal)*100
+```
+ 
+Percentage multi hormonal
+``` {r % multi hormonal cells}
+#Find the corticotroph index
+MultiHormonalidx <- which(cellspercluster=="Multi Hormonal")
+
+#pull out the number of thyrotrophs
+MultiHormonals <- cellspercluster[MultiHormonalidx,"Freq"]
+
+propMultiHormonal <- (MultiHormonals/cellstotal)*100
+``` 
+ 
+ * Thyrotrophs;  <1%                 
+ * Somatotrophs;  49%                
+ * Lactotrophs;  27%                  
+ * Gonadotrophs;  5%           
+ * Melanotrophs;  2%           
+ * Corticotrophs; 5%            
+ * Stem cells; 3%                   
+ * Endothelial cells; 3%            
+ * Posteriour pituitary cells; <1%   
+ * Collagen cells; 1%              
+ * Red blood cells; <1%              
+ * White blood cells; 1% 
+ * Mki67+; 3%
+ * Uncategorised; --
+ * Multi hormonal; --
+
+\newpage Analyse the corticotrophs
+
+The data for the corticotroph cluster is extracted for further study using `subset`.
+``` {r pull out cluster, include=FALSE}
+cortico <- subset(data, idents = "Corticotroph")
+```
+
+To investigate cell homogeneity within the cell cluster of interest, the same procedure may be repeated;
+
+*Data transformation, identification of principal components (PCA)
+*Dimensional reduction (UMAP)
+*Identification of nearest neighbours (SNN)
+*Clustering using SNN.
+
+
+``` {r re-cluster selected cluster, include=FALSE}
+
+#dimensional analysis
+#PCA to identify PCs
+cortico <- RunPCA(cortico,verbose= FALSE) 
+
+```
+Elbow plot to establish dimensionality;
+
+``` {r elbow 2, echo = FALSE,fig.height=3.5}
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(cortico, ndims=30)
+
+```
+
+Identify most of information retained in 20 PCs
+
+``` {r dimension reduction on reclustyer, include = FALSE}
+#dimensional reduction
+#UMAP dimensional reduction of the identified PCs, change dims!
+cortico <- RunUMAP(cortico, dims=1:30, verbose=FALSE) #note because SCTransform passes 3000 features can run more PCs
+
+#Find nearest neighbours, change dims!
+cortico <- FindNeighbors(cortico, dims=1:30, verbose=FALSE)
+
+#CLuster based on neighbour distances
+cortico <- FindClusters(cortico, verbose=FALSE, resolution = 0.5)
+
+```
+
+
+A dimensional reduction plot can then reveal any heterogeneity in the cluster;
+
+```{r cluster homogeneity? plot any clusters of the selected cluster, echo=FALSE,fig.height=3.5, message=FALSE}
+#plot the clusters
+DimPlot(cortico, pt.size = 5, label=TRUE) + NoLegend()
+
+```
+
+A featureplot can be used to examine gene expression levels across these clusters within the corticotroph data;
+
+``` {r clustre Pomc expression- could be any gene! , echo=FALSE,fig.height=3.5, message=FALSE}
+#Visualise the canonical marker genes 
+FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color_viridis_c()
+
+```
+
+
+Differential expression analysis can reveal differences between the clusters, for example the two top deferentially expressed genes for each cluster are;
+```{r examin cluster differential expression, include=FALSE} 
+#examine DE genes in the  corticotroph cluster
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
+cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25,thresh.test = 4, logfc.threshold = 0.25)
+#examine top 2 deferentially expressed genes in each corticotroph cluster
+df <- cortico.markers %>% group_by(cluster) %>% top_n(n=20, wt= avg_logFC)
+
+```
+
+``` {r differential expression summary, echo=FALSE,message=FALSE}
+head(df, n=60)
+
+```
+
+
+
+
+Now perform trajectory analysis on the corticotrophs using Monocle3 (see https://satijalab.org/signac/articles/monocle.html)
+
+
+
+
+
+
+
+
+
+
+    
