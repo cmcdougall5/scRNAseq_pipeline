@@ -10,8 +10,9 @@ date: "October 2020"
 #    toc: true
 output: pdf_document
 #output: ioslides_presentation
-  
 ---
+ 
+
 
 ```{r setup,  include=FALSE}
 #echo r code in markdown output,
@@ -19,7 +20,18 @@ knitr::opts_chunk$set(echo = TRUE)
  
 ```
 
+  
+##  Housekeeping
 
+Perform housekeeping (clear data and cache)
+``` {r clean}
+#First clear the environment;
+rm(list=ls())
+
+#Then the cache
+gc()
+
+``` 
 
 ## Introduction
 
@@ -358,8 +370,8 @@ DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)#+NoLegend()
 Top differentially expressed gene for each cluster:
 ```{r examin cluster differential expression, include=FALSE} 
 #examine DE genes in the   clusters
-#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
-markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold difference
+markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.3)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
 df <- markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
 
@@ -636,8 +648,10 @@ FeaturePlot(cortico, features = c("Pomc"), pt.size = 5, label=TRUE)& scale_color
 Differential expression analysis can reveal differences between the clusters, for example the two top deferentially expressed genes for each cluster are;
 ```{r examin cluster differential expression, include=FALSE} 
 #examine DE genes in the  corticotroph cluster
-#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
-cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25,thresh.test = 100, logfc.threshold = 0.25)
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold differences 
+# if log_fc=x, then fc=2^x... 
+#so if fc = 2, x = 1 and logfc=1.
+cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25,thresh.test = 100, logfc.threshold =1)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
 df <- cortico.markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
 
@@ -647,7 +661,6 @@ df <- cortico.markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
 head(df, n=30)
 
 ```
-
 
 
 

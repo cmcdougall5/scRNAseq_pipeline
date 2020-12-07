@@ -1,0 +1,473 @@
+---
+title: "Pituitary corticotroph gene expression analysis"
+subtitle: "Ho et al scRNA seq dataset"
+author: "Craig McDougall"
+date: "October 2020"
+#set figure widths
+#output: html_document
+#output: 
+# html_document:
+#    toc: true
+output: pdf_document
+#output: ioslides_presentation
+---
+
+##  Housekeeping
+
+Perform housekeeping (clear data and cache)
+``` {r clean}
+#First clear the environment;
+rm(list=ls())
+
+#Then the cache
+gc()
+```
+
+Now setup for rmarkup;
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This document details the analysis of the single RNA sequence data by [Ho et.al. 2020](https://link.springer.com/article/10.1007/s13238-020-00705-x). available from [the NCBI gene expression omnibus](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE146619).
+
+## Step 1. Call Libraries & Set Directories
+
+Before the main body of the pipeline is run, all of the required libraries are called and 
+
+```{r Initialising required libraries, include =FALSE}
+
+library(dplyr) 
+library(Seurat)
+library(patchwork)
+library(sctransform)
+library(ggplot2)
+library(scales)
+library(monocle3)
+library(SeuratWrappers)
+library(Matrix)
+library(reticulate)
+```
+
+Set a seed so that clusters look the same each time code is run:
+``` {r set seed}
+set.seed(1234)
+```
+
+Set working directory.
+``` {r Set Directories, include = FALSE}
+#set the working directory to directory wish to read data from and save analysis results to
+data.dir <- setwd(here::here())
+```
+
+## Step 2. Load the data:
+
+The raw count and gene data is read in from the 10X sequence data files in the Ho folder.
+The first step is to merge the male and female datasets and read them in. TO do this a list is made:
+``` {r make list}
+Ho.data <- list(Read10X("Ho Data/Ho female"), Read10X("Ho Data/Ho male"))
+```
+
+Then create a temporary Seurat object of the two datasets;
+``` {r create temp seurat}
+tmp.SO <- sapply(Ho.data, function(x){CreateSeuratObject(x, min.cells = 3, min.features = 200)})
+```
+
+Now merge the datasets, record the sex for later use;
+``` {r merge the data sets}
+# Merge the datasets, prefix the cell names with M or F
+Ho.Seuratobj <- merge(tmp.SO[[1]], tmp.SO[[2]], add.cell.ids = c("Female", "Male"))
+# Save sex in the metadata, to be used later
+Ho.Seuratobj <- AddMetaData(Ho.Seuratobj,metadata = substr(Cells(Ho.Seuratobj), 1, 1),col.name = "Sex")
+```
+
+\newpage
+## Step 3. Quality control plots
+
+Before processing the data, some quality control plots are made to assess the quality of the data and explore confounding factors such as assessing the number of reads that map to mitochondrial genome.
+
+``` {r QC plots}
+Ho.Seuratobj <- PercentageFeatureSet(Ho.Seuratobj, pattern = "^mt-", col.name = "percent.mt")
+VlnPlot(Ho.Seuratobj, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"),ncol = 3, pt.size=0,group.by="Sex")
+
+#make the plots
+plot1 <- FeatureScatter(Ho.Seuratobj, feature1 = "nCount_RNA", feature2 = "percent.mt",group.by="Sex")
+plot2 <- FeatureScatter(Ho.Seuratobj, feature1 = "nCount_RNA", feature2 = "nFeature_RNA",group.by="Sex")
+#then plot
+plot1 + plot2
+```
+
+\newpage
+## Step 4.  Transform the data
+
+THe data must be;
+
+* Normalised to ensure all genes carry equal weight going forward and prevent heavily expressing genes from being over represented.
+* Regressed to remove confounding factors such as areas mapped to the mitochondrial genome.
+* Assessed for variable genes. 
+
+The [SCTransform](https://satijalab.org/seurat/v3.1/sctransform_vignette.html) function performs all of these actions and greatly simplifies the code, negating the use of four separate functions. 
+
+``` {r transform data}
+Ho.Seuratobj <- SCTransform(Ho.Seuratobj, vars.to.regress = "percent.mt")
+```
+
+\newpage
+## Step 5. Dimensional reduction
+
+The first step in dimensional reduction is to conduct principal component analysis (PCA) on the scaled data, using the variable features as the input. PCA transforms the from the table into new features known as principal components, which capture the information of the dataset in a new way.
+
+``` {r Principal component analysis}
+Ho.Seuratobj <- RunPCA(Ho.Seuratobj)
+```
+
+An elbow plot can be used to assess which principal components contain the majority of the information and identify which may be removed from the dataset, so reduce noise by removing PCS containing no information;
+
+``` {r Plot Elbow, echo = FALSE,fig.height=3.5}
+#Do we need to keep all PCs, or is majority of data captured by a certain point?
+ElbowPlot(Ho.Seuratobj, ndims=30)
+
+```
+
+
+With the principal components identified, the dataset can be reduced (remove  noise). Uniform Manifold Approximation and Projection (UMAP) is an algorithm for dimensional reduction and is applied on the PCA components established in the first step.
+``` {r UMAP}
+Ho.Seuratobj <- RunUMAP(Ho.Seuratobj, dims=1:23,UMAP.method = "umap-learn", metric = "correlation")
+```
+
+
+
+\newpage
+## Step 6. Clustering
+
+First establish shared nearest neighbour (SNN) information for the data by calculating the overlap between each cell based on its k.parameters using the [FindNeighbours function](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindNeighbors).
+
+The clusters can then be identified based on the SNN using a [FindClusters function](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FindClusters). 
+
+``` {r cluster cells}
+Ho.Seuratobj <- FindNeighbors(Ho.Seuratobj, dims=1:23, verbose=FALSE)
+Ho.Seuratobj <- FindClusters(Ho.Seuratobj, resolution = 0.7 , verbose=FALSE)
+
+```
+
+Once the clusters have been established, they can be projected into two lower dimensional space using a [dimensional reduction plot](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/DimPlot) for visualisation.
+
+``` {r plot clusters}
+DimPlot(Ho.Seuratobj,group.by="Sex", label=TRUE) + NoLegend()+ ggtitle("scRNA Sequence Data By sex")
+ 
+DimPlot(Ho.Seuratobj, label=TRUE) + NoLegend()+ ggtitle("scRNAseq clustered")
+
+```
+
+
+
+\newpage Attribute cell type
+
+How well do the clusters approximate cell type? It is difficult to make absolute claims when attributing cell types to empirical cluster data based purely on an *in silico* analysis. However we may approximate the cell type of each cluster based on known canonical expression markers ^[[Fletcher et.al 2019](https://www.frontiersin.org/articles/10.3389/fendo.2019.00623/full)]^ ^[[Chung et.al 2018](https://academic.oup.com/endo/article/159/12/3910/5133692)]^. 
+
+ 
+ [Feature plots](https://www.rdocumentation.org/packages/Seurat/versions/3.1.4/topics/FeaturePlot) were used to visually assess gene expression levels of single cells. Cell type was assigned based on visual inspection of canonical markers ^[Ho et al}(https://link.springer.com/article/10.1007/s13238-020-00705-x),^ ^[Fletcher et al](https://www.frontiersin.org/articles/10.3389/fendo.2019.00623/full),^ ^[Chung et al](https://academic.oup.com/endo/article/159/12/3910/5133692)^.
+
+
+Check to see if any clusters exhibit a lot of genes per cell (mixed droplets) or large number of counts per cell (multiple cells in droplet) and if any clusters are multihormonal
+``` {r check the number of genes per cell}
+#look at the number of genes per cell
+FeaturePlot(Ho.Seuratobj, features = "nFeature_RNA", pt.size = 1) &scale_color_viridis_c()  
+
+#look at the number of counts per cells
+FeaturePlot(Ho.Seuratobj, features = "nCount_RNA", pt.size = 1) &scale_color_viridis_c() 
+
+#look at the % mitochondrial mapping
+FeaturePlot(Ho.Seuratobj, features = "percent.mt", pt.size = 1) &scale_color_viridis_c() 
+
+
+#look to see if any multihormonal
+FeaturePlot(Ho.Seuratobj, features = c("Lhb", "Pomc", "Gh", "Prl"), pt.size = 2)&scale_color_viridis_c()
+
+```
+Cluster 5 could appear to be a cluster of cells with large numbers of genes and counts. Is this cluster is doublets/damaged?
+
+Identify the Stem cell
+``` {r id stem, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Sox2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Fstl1"), pt.size = 1)&scale_color_viridis_c()
+```
+Cluster 8 appears to be the stem cells.
+
+
+Identify the "multi-hormonals" cells, defined in Ho et al; 
+``` {r id multi hormonal, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Gh"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Tshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Fshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Lhb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+```
+Clusters 3 & 5 & 7 appear to be the multihormonal cells.
+
+
+Identify lactotophs;
+``` {r id lacto, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Agtr1b"), pt.size = 1)&scale_color_viridis_c()
+``` 
+2 & 3 appear to be the lactotrophs
+
+Identify Somatotophs; 
+``` {r id somato, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Gh"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Ghrhr"), pt.size = 1)&scale_color_viridis_c()
+```
+
+CLusters 0 & 1 appear to be the somatotrophs
+
+
+Identify gonadotophs, 
+``` {r id gonado, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Fshb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Lhb"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Gnrhr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Cga"), pt.size = 1)&scale_color_viridis_c()
+``` 
+Cluster 9 appears to be the gonadotrophs.
+
+
+Identify Melanotrophs;
+``` {r id melano, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Pcsk2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Pax7"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Tbx19"), pt.size = 1)&scale_color_viridis_c()
+``` 
+Clusters 4 & 10 appear to be the melanotrophs.
+
+
+Identify Corticotrophs; 
+``` {r id cort, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+#Dont want any of this:
+FeaturePlot(Ho.Seuratobj, features = c("Pcsk2"), pt.size = 1)&scale_color_viridis_c()
+#want these;
+FeaturePlot(Ho.Seuratobj, features = c("Pomc"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Crhr1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Tbx19"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Cdh8"), pt.size = 1)&scale_color_viridis_c()
+
+
+```
+Cluster 7 appears to be the corticotrophs.
+
+Identify thyrotophs ;
+``` {r id thyro, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Tshb"), pt.size = 1)&scale_color_viridis_c()
+```
+Not clear which cluster represents the thyrotrophs. May not be present in sample. 
+
+connective tissue (collagen cells) in Cheung et al, Folliculostellate cells in Ho et al,  pericytes in fletcher et al
+``` {r id connective tissues, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Fstl1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Col1a1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("S100b"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Fxyd1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Gstm2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Capn6"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Dcn"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Lum"), pt.size = 1)&scale_color_viridis_c()
+``` 
+Cluster 14 appears to be the connective tissue cells.
+
+white blood cells (C1qa) Macrophages in Ho paper leukocytes in fletcher
+``` {r id white blood cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("C1qa"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Ctss"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Cd53"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Tyrobp"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Fcer1g"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Laptm5"), pt.size = 1)&scale_color_viridis_c()
+```
+Cluster 11 appears to be the white blood cells (macrophages).
+
+
+
+Identify Erythrocytes/red blood cells; 
+``` {r id red blood cellss, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Hbb-bt"), pt.size = 1)&scale_color_viridis_c()
+
+FeaturePlot(Ho.Seuratobj, features = c("Hba-a1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Hba-a2"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Hbb-b1"), pt.size = 1)&scale_color_viridis_c()
+```
+It is unclear which cluster represents RBCs. May not be present in sample. 
+
+
+Identify endothilial cells;) 
+``` {r id endothelia cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pecam1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Plvap"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Aplnr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Emcm"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Clec14a"), pt.size = 1)&scale_color_viridis_c()
+```
+It is unclear which cluster represents endothelial cells. May not be present in sample. 
+
+
+
+Identify posteriour pituitary cells;
+``` {r id posterior cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Nkx2-1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Gfap"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("S100b"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Avp"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Oxt"), pt.size = 1)&scale_color_viridis_c()
+
+FeaturePlot(Ho.Seuratobj, features = c("Lhx2"), pt.size = 1)&scale_color_viridis_c()
+```
+Cluster 6 seems to contain some posteriour pituitary cells. May not be present in sample. 
+
+
+Identify Mki67+ from Ho et al; 
+``` {r id Mki67+ cells, echo=FALSE,fig.height=3.5, message=FALSE}
+DimPlot(Ho.Seuratobj, label=TRUE)+ ggtitle("Pituitary scRNAseq Clusters")
+FeaturePlot(Ho.Seuratobj, features = c("Pou1f1"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Prl"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Ghrhr"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Top2a"), pt.size = 1)&scale_color_viridis_c()
+FeaturePlot(Ho.Seuratobj, features = c("Mki67"), pt.size = 1)&scale_color_viridis_c()
+``` 
+Cluster 16 appear to represent the Mki67+ cells
+
+
+These plots would suggest the following attribution of cell type:
+
+ * Thyrotrophs;                  Cluster -- 
+ * Somatotrophs;                 Cluster 0,2    
+ * Lactotrophs;                  Cluster 1,3 
+ * Gonadotrophs;                 Cluster 9   
+ * Melanotrophs;                 Cluster 4,10  
+ * Corticotrophs;                Cluster 13  
+ * Stem cells;                   Cluster 8    
+ * Endothelial cells;            Cluster --   
+ * Posteriour pituitary cells;   Cluster --    
+ * Collagen cells;               Cluster 14   
+ * Red blood cells;              Cluster --    
+ * White blood cells;            Cluster 11   
+ * Mki67+                        Cluster 16   
+ * Multi Hormonal                Cluster 5,7  
+ * Uncategorised                 Cluster  12, 15 
+ * doublets/damaged              Cluster 6
+ 
+Find how many cells per cluster
+``` {r cells per cluster}
+#Use the Idents function
+cellscluster <- table(Idents(Ho.Seuratobj))
+```
+
+ 
+attribute cell types to the clusters
+``` {r name clusters, echo=FALSE}
+
+new.cluster.ids <- c("Somatotroph", "Lactotroph","Somatotroph", "Lactotroph","Melanotroph","Multi Hormonal", "doublets/damaged","Multi Hormonal","Stem Cells","Gonadotroph","Melanotroph","WBC", "Uncategorised","Corticotroph","Collagen", "Uncategorised","Mki67+") 
+
+
+names(new.cluster.ids) <- levels(Ho.Seuratobj)
+```
+
+rename clusters with new names
+``` {r re-plot clusters with names,fig.height=3.5, echo=FALSE}
+#Rename the cluster
+Ho.Seuratobj <- RenameIdents(Ho.Seuratobj, new.cluster.ids)
+#then put on the plot to confirm slected the correct one (sanity check)
+
+```
+
+Plot the clusters with new names
+``` {r plot clusters with names}
+DimPlot(Ho.Seuratobj,group.by="Sex", label=TRUE) + NoLegend()+ ggtitle("scRNA Sequence Data By sex")
+
+DimPlot(Ho.Seuratobj, reduction ="umap", label = TRUE, pt.size = 0.5) +NoLegend()
+```
+Does it fit that the uncategorised cells and damaged/doublet clusters are not mixed in with the data, examine the PCas
+
+``` {r does junk sit outside data}
+ DimPlot(Ho.Seuratobj, reduction = "pca")
+```
+Can see that these clusters do indeed sit outside the bulk of the data, so happy that these can be ignored. Subset the data to remove these junk cells. Also remove the multi hormonal cells for clarity.
+
+``` {r throw away junk, include=FALSE}
+Ho.Seuratobj <- subset(Ho.Seuratobj, idents = c("Somatotroph", "Lactotroph","Melanotroph","Stem Cells","Gonadotroph","WBC", "Corticotroph","Collagen","Mki67+"))
+```
+
+\newpage Examine the differential expression for the clusters
+
+
+Top differentially expressed gene for each cluster:
+```{r examin cluster differential expression, include=FALSE} 
+#examine DE genes in the   clusters
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
+#want miniumu 2 fold differnce, set using logfc-threshold. log 2 is 0.3
+markers <-FindAllMarkers(Ho.Seuratobj, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.6, )
+#examine top 2 deferentially expressed genes in each corticotroph cluster
+df <- markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
+
+```
+
+``` {r differential expression summary, echo=FALSE,message=FALSE}
+head(df, n=90)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+d
