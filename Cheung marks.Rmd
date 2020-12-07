@@ -37,6 +37,14 @@ library(patchwork)
 library(sctransform)
 library(ggplot2)
 library(scales)
+library(monocle3)
+library(SeuratWrappers)
+library(Matrix)
+```
+
+Set a seed so that clusters look the same each plot:
+``` {r set seed}
+set.seed(1234)
 ```
 
 the working directories are then set.
@@ -122,7 +130,8 @@ ElbowPlot(data, ndims=30)
 ``` {r Perform dimensional reduction (UMAP), include=FALSE }
 
 #UMAP dimensional reduction of the identified PCs, only first 20 PCs,   #change dims!
-data <- RunUMAP(data, dims=1:30, metric = "correlation", verbose=FALSE)
+#data <- RunUMAP(data, dims=1:30, umap.method = "umap-learn", metric = "correlation", verbose=FALSE)
+data <- RunUMAP(data, dims=1:30, UMAP.method = "UMAP-learn", metric = "correlation", verbose=FALSE)
 
 ```
 
@@ -332,13 +341,20 @@ new.cluster.ids <- c("Somatotroph","Somatotroph","Somatotroph","Somatotroph", "L
 names(new.cluster.ids) <- levels(data)
 ```
 
-plot clusters with new names
+rename clusters with new names
 ``` {r re-plot clusters with names,fig.height=3.5, echo=FALSE}
 #Rename the cluster
 data <- RenameIdents(data, new.cluster.ids)
 #then put on the plot to confirm slected the correct one (sanity check)
-DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
+
 ```
+Plot the clusters with new names
+``` {r plot with names}
+DimPlot(data, reduction ="umap", label = FALSE, pt.size = 0.5)#+NoLegend()
+
+DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)#+NoLegend()
+```
+
 Top differentially expressed gene for each cluster:
 ```{r examin cluster differential expression, include=FALSE} 
 #examine DE genes in the   clusters
@@ -621,26 +637,65 @@ Differential expression analysis can reveal differences between the clusters, fo
 ```{r examin cluster differential expression, include=FALSE} 
 #examine DE genes in the  corticotroph cluster
 #find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
-cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25,thresh.test = 4, logfc.threshold = 0.25)
+cortico.markers <-FindAllMarkers(cortico, only.pos = TRUE, min.pct = 0.25,thresh.test = 100, logfc.threshold = 0.25)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
-df <- cortico.markers %>% group_by(cluster) %>% top_n(n=20, wt= avg_logFC)
+df <- cortico.markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
 
 ```
 
 ``` {r differential expression summary, echo=FALSE,message=FALSE}
-head(df, n=60)
+head(df, n=30)
 
 ```
 
 
 
 
-Now perform trajectory analysis on the corticotrophs using Monocle3 (see https://satijalab.org/signac/articles/monocle.html)
+Now perform trajectory analysis on the corticotrophs using Monocle3 (see https://satijalab.org/signac/articles/monocle.html), section, building trajectories with moncle3.
+
+
+Building trajectories: use monocle 3
 
 
 
+ 
+ 
+Convert Seurat object to CellDataSet and build trajectories;
+
+``` {r convert Seurat}
+cort.cds <- as.cell_data_set(cortico)
+
+cort.cds <- cluster_cells(cds = cort.cds, reduction_method ="UMAP")
+cort.cds <- learn_graph(cort.cds, use_partition = TRUE)
+```
+Now compute the pseudotime for the trajectories
+``` {r calculate pseudotmime}
+cort.cds <- order_cells(cort.cds, reduction_method = "UMAP")
+```
+Now can plot the trajectories , coloured by pseudotime;
+
+``` {r plot trajectories cloured by ptime}
+plot_cells(
+  cds = cort.cds,
+  color_cells_by = "pseudotime",
+  show_trajectory_graph = TRUE,
+  cell_size = 2
+)
 
 
+```
+
+Now, can extract the pseudotime values and add to the Seurat object;
+
+``` {r add ptime to seurat object}
+
+cortico <- AddMetaData(
+  object = cortico,
+  metadata = cort.cds@principal_graph_aux@listData$UMAP$pseudotime,
+  col.name = "Corticotroph"
+)
+
+```
 
 
 
