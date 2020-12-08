@@ -710,6 +710,16 @@ cortico <- AddMetaData(
 
 ```
 
+\newpage 
+## Try dyno trajectory analysis
+
+Based on this https://dynverse.org/users/3-user-guide/1-preparing/
+
+``` {r dyno libs}
+library(dyno)
+library(tidyverse)
+
+```
 
 
 

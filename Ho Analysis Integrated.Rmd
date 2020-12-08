@@ -405,42 +405,497 @@ DimPlot(Ho.Seuratobj,group.by="Sex", label=TRUE) + NoLegend()+ ggtitle("scRNA Se
 
 DimPlot(Ho.Seuratobj, reduction ="umap", label = TRUE, pt.size = 0.5) +NoLegend()
 ```
-Does it fit that the uncategorised cells and damaged/doublet clusters are not mixed in with the data, examine the PCas
 
-``` {r does junk sit outside data}
- DimPlot(Ho.Seuratobj, reduction = "pca")
+
+Can see that there are significant differences in how the Somatorophs, lactotrophs, gonadotrophs, melanotrophs and corticotrophs cluster by sex.
+
+plot in two seperate plots plots
+
+```{r Plot clusters seperate sexes, echo = FALSE,fig.height=3.5}
+DimPlot(Ho.Seuratobj, split.by = "Sex", label=FALSE) + ggtitle("scRNA Sequence Data By sex")
 ```
-Can see that these clusters do indeed sit outside the bulk of the data, so happy that these can be ignored. Subset the data to remove these junk cells. Also remove the multi hormonal cells for clarity.
+Examine the DE between clusters in each sex.
 
+First drop the multihormonal, uncategorised and damaged junk cells as these will throw off the DE levels and not relevant.
 ``` {r throw away junk, include=FALSE}
 Ho.Seuratobj <- subset(Ho.Seuratobj, idents = c("Somatotroph", "Lactotroph","Melanotroph","Stem Cells","Gonadotroph","WBC", "Corticotroph","Collagen","Mki67+"))
 ```
 
-\newpage Examine the differential expression for the clusters
+Split the clusters by sex and then compare the differential expression;
+``` {r seperate sexes}
+maleclusters <- subset(Ho.Seuratobj, subset = Sex == "M")
+femaleclusters <- subset(Ho.Seuratobj, subset = Sex == "F")
+```
 
 
-Top differentially expressed gene for each cluster:
-```{r examin cluster differential expression, include=FALSE} 
-#examine DE genes in the   clusters
-#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones
-#want miniumu 2 fold differnce, set using logfc-threshold. log 2 is 0.3
-markers <-FindAllMarkers(Ho.Seuratobj, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.6, )
+
+
+Examine Male DE;
+```{r Male differential expression, include=FALSE} 
+
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold enrichment
+markers <-FindAllMarkers(maleclusters, only.pos = TRUE, min.pct = 0.25, logfc.threshold =1)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
-df <- markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
+mDE <- markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
 
 ```
 
-``` {r differential expression summary, echo=FALSE,message=FALSE}
-head(df, n=90)
+``` {r male DE summary, echo=FALSE,message=FALSE}
+head(mDE, n=44)
+
+```
+
+Examine Female DE;
+```{r Female differential expression, include=FALSE} 
+
+#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold enrichment
+markers <-FindAllMarkers(femaleclusters, only.pos = TRUE, min.pct = 0.25, logfc.threshold =1)
+#examine top 2 deferentially expressed genes in each corticotroph cluster
+fDE <- markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
+
+```
+
+``` {r femmale DE summary, echo=FALSE,message=FALSE}
+head(fDE, n=44)
+
+```
+
+THere are some differences in what genes are differentially expressed between clusters in the sexes.
+Next analyse cell proportions
+
+\newpage
+## Analyse male cell proportions
+
+Find how many cells per cluster (males)
+``` {r mcells per cluster}
+#Use the Idents function
+mcellscluster <- table(Idents(maleclusters))
+```
+
+How many cells total and per cluster?
+``` {r mtotal cells}
+#Use the sum function
+mcellstotal <- sum(mcellscluster)
+# the L in values denotes that this is an integer
+
+#make cells per cluster a datafram  
+mcellspercluster <- data.frame(mcellscluster)
+```
+
+Percentage thyrotrophs
+``` {r % mthyro}
+#Find the thyrotroph index
+mthyroidx <- which(mcellspercluster=="Thyrotroph")
+
+#pull out the number of thyrotrophs
+mthyros <- mcellspercluster[mthyroidx,"Freq"]
+
+mpropthy <- (mthyros/mcellstotal)*100
+```
+
+Percentage somatotrophs
+``` {r % msomatotrophs}
+#Find the somatotroph index
+msomatoidx <- which(mcellspercluster=="Somatotroph")
+
+#pull out the number of thyrotrophs
+msomatos <- mcellspercluster[msomatoidx,"Freq"]
+
+mpropsom <- (msomatos/mcellstotal)*100
+```
+
+Percentage lactotrophs
+``` {r % mlactotrophs}
+#Find the lactotroph index
+mlactoidx <- which(mcellspercluster=="Lactotroph")
+
+#pull out the number of thyrotrophs
+mlactos <- mcellspercluster[mlactoidx,"Freq"]
+
+mproplac <- (mlactos/mcellstotal)*100
+```
+
+Percentage Gonadotrophs
+``` {r % mgonadotrophs}
+#Find the gonadotroph index
+mgonadoidx <- which(mcellspercluster=="Gonadotroph")
+
+#pull out the number of thyrotrophs
+mgonados <- mcellspercluster[mgonadoidx,"Freq"]
+
+mpropgon <- (mgonados/mcellstotal)*100
+```
+
+Percentage Melanotrophs
+``` {r % mmelanotrophs}
+#Find the melanotroph index
+mmelanoidx <- which(mcellspercluster=="Melanotroph")
+
+#pull out the number of thyrotrophs
+mmelanos <- mcellspercluster[mmelanoidx,"Freq"]
+
+mpropmel <- (mmelanos/mcellstotal)*100
+```
+
+Percentage corticotrophs
+``` {r % mcorticotrophs}
+#Find the corticotroph index
+mcortidx <- which(mcellspercluster=="Corticotroph")
+
+#pull out the number of thyrotrophs
+mcorts <- mcellspercluster[mcortidx,"Freq"]
+
+mpropcor <- (mcorts/mcellstotal)*100
+```
+
+Percentage stem cells
+``` {r % mstem cells}
+#Find the corticotroph index
+mstemidx <- which(mcellspercluster=="Stem Cells")
+
+#pull out the number of thyrotrophs
+mstems <- mcellspercluster[mstemidx,"Freq"]
+
+mpropstem <- (mstems/mcellstotal)*100
+```
+
+Percentage endothelial cells
+``` {r % mendothelial cells}
+#Find the corticotroph index
+mendoidx <- which(mcellspercluster=="Endothelial cells")
+
+#pull out the number of thyrotrophs
+mendos <- mcellspercluster[mendoidx,"Freq"]
+
+mpropendo <- (mendos/mcellstotal)*100
+```
+
+Percentage posteriour pituitary cells
+``` {r % mposteriour pituitary cells}
+#Find the corticotroph index
+mpostidx <- which(mcellspercluster=="posteriour pituitary")
+
+#pull out the number of thyrotrophs
+mposts <- mcellspercluster[mpostidx,"Freq"]
+
+mproppost <- (mposts/mcellstotal)*100
+```
+
+Percentage collagen cells
+``` {r % mcollagen cells}
+#Find the corticotroph index
+mcolidx <- which(mcellspercluster=="Collagen")
+
+#pull out the number of thyrotrophs
+mcols <- mcellspercluster[mcolidx,"Freq"]
+
+mpropcol <- (mcols/mcellstotal)*100
+```
+
+
+Percentage red blood cells
+``` {r % mred blood cells}
+#Find the corticotroph index
+mrbcidx <- which(mcellspercluster=="RBC")
+
+#pull out the number of thyrotrophs
+mrbcs <- mcellspercluster[mrbcidx,"Freq"]
+
+mproprbc <- (mrbcs/mcellstotal)*100
+```
+
+Percentage white blood cells
+``` {r % mwhite blood cells}
+#Find the corticotroph index
+mwbcidx <- which(mcellspercluster=="WBC")
+
+#pull out the number of thyrotrophs
+mwbcs <- mcellspercluster[mwbcidx,"Freq"]
+
+mpropwbc <- (mwbcs/mcellstotal)*100
+```
+
+Percentage Mki67+
+``` {r % mMki67+ blood cells}
+#Find the corticotroph index
+mMki67idx <- which(mcellspercluster=="Mki67+")
+
+#pull out the number of thyrotrophs
+mMki67s <- mcellspercluster[mMki67idx,"Freq"]
+
+mpropMki67 <- (mMki67s/mcellstotal)*100
+```
+Percentage uncategorised
+``` {r % muncategorised cells}
+#Find the corticotroph index
+mUncategorisedidx <- which(mcellspercluster=="Uncategorised")
+
+#pull out the number of thyrotrophs
+mUncategoriseds <- mcellspercluster[mUncategorisedidx,"Freq"]
+
+mpropUncategorised <- (mUncategoriseds/mcellstotal)*100
+```
+ 
+Percentage multi hormonal
+``` {r % mmulti hormonal cells}
+#Find the corticotroph index
+mMultiHormonalidx <- which(mcellspercluster=="Multi Hormonal")
+
+#pull out the number of thyrotrophs
+mMultiHormonals <- mcellspercluster[mMultiHormonalidx,"Freq"]
+
+mpropMultiHormonal <- (mMultiHormonals/mcellstotal)*100
+``` 
+ 
+ Male pituitary cell proportions (multihormonal, uncateghorised and damaged cells excluded)
+ * Thyrotrophs;         --                  
+ * Somatotrophs;        48%                  
+ * Lactotrophs;         21%                     
+ * Gonadotrophs;        5%              
+ * Melanotrophs;        10%              
+ * Corticotrophs;       4%              
+ * Stem cells;          6%          
+ * Endothelial cells;   --         
+ * Posteriour pituitary cells; --   
+ * Collagen cells;      2%               
+ * Red blood cells;     --           
+ * White blood cells;   3%  
+ * Mki67+;              <1%   
+ 
+Total ~ 100%
+
+
+
+
+\newpage
+
+## Analyse Female corticotroph cell proportions
+
+Find how many cells per cluster
+``` {r fcells per cluster}
+#Use the Idents function
+fcellscluster <- table(Idents(femaleclusters))
+```
+
+How many cells total and per cluster?
+``` {r ftotal cells}
+#Use the sum function
+fcellstotal <- sum(fcellscluster)
+# the L in values denotes that this is an integer
+
+#make cells per cluster a datafram  
+fcellspercluster <- data.frame(fcellscluster)
+```
+
+Percentage thyrotrophs
+``` {r % fthyro}
+#Find the thyrotroph index
+fthyroidx <- which(fcellspercluster=="Thyrotroph")
+
+#pull out the number of thyrotrophs
+fthyros <- fcellspercluster[fthyroidx,"Freq"]
+
+fpropthy <- (fthyros/fcellstotal)*100
+```
+
+Percentage somatotrophs
+``` {r % fsomatotrophs}
+#Find the somatotroph index
+fsomatoidx <- which(fcellspercluster=="Somatotroph")
+
+#pull out the number of thyrotrophs
+fsomatos <- fcellspercluster[fsomatoidx,"Freq"]
+
+fpropsom <- (fsomatos/fcellstotal)*100
+```
+
+Percentage lactotrophs
+``` {r % flactotrophs}
+#Find the lactotroph index
+flactoidx <- which(fcellspercluster=="Lactotroph")
+
+#pull out the number of thyrotrophs
+flactos <- fcellspercluster[flactoidx,"Freq"]
+
+fproplac <- (flactos/fcellstotal)*100
+```
+
+Percentage Gonadotrophs
+``` {r % fgonadotrophs}
+#Find the gonadotroph index
+fgonadoidx <- which(fcellspercluster=="Gonadotroph")
+
+#pull out the number of thyrotrophs
+fgonados <- fcellspercluster[fgonadoidx,"Freq"]
+
+fpropgon <- (fgonados/fcellstotal)*100
+```
+
+Percentage Melanotrophs
+``` {r % fmelanotrophs}
+#Find the melanotroph index
+fmelanoidx <- which(fcellspercluster=="Melanotroph")
+
+#pull out the number of thyrotrophs
+fmelanos <- fcellspercluster[fmelanoidx,"Freq"]
+
+fpropmel <- (fmelanos/fcellstotal)*100
+```
+
+Percentage corticotrophs
+``` {r % fcorticotrophs}
+#Find the corticotroph index
+fcortidx <- which(fcellspercluster=="Corticotroph")
+
+#pull out the number of thyrotrophs
+fcorts <- fcellspercluster[fcortidx,"Freq"]
+
+fpropcor <- (fcorts/fcellstotal)*100
+```
+
+Percentage stem cells
+``` {r % fstem cells}
+#Find the corticotroph index
+fstemidx <- which(fcellspercluster=="Stem Cells")
+
+#pull out the number of thyrotrophs
+fstems <- fcellspercluster[fstemidx,"Freq"]
+
+fpropstem <- (fstems/fcellstotal)*100
+```
+
+Percentage endothelial cells
+``` {r % fendothelial cells}
+#Find the corticotroph index
+fendoidx <- which(fcellspercluster=="Endothelial cells")
+
+#pull out the number of thyrotrophs
+fendos <- fcellspercluster[fendoidx,"Freq"]
+
+fpropendo <- (fendos/fcellstotal)*100
+```
+
+Percentage posteriour pituitary cells
+``` {r % fposteriour pituitary cells}
+#Find the corticotroph index
+fpostidx <- which(fcellspercluster=="posteriour pituitary")
+
+#pull out the number of thyrotrophs
+fposts <- fcellspercluster[fpostidx,"Freq"]
+
+fproppost <- (fposts/fcellstotal)*100
+```
+
+Percentage collagen cells
+``` {r % fcollagen cells}
+#Find the corticotroph index
+fcolidx <- which(fcellspercluster=="Collagen")
+
+#pull out the number of thyrotrophs
+fcols <- fcellspercluster[fcolidx,"Freq"]
+
+fpropcol <- (fcols/fcellstotal)*100
+```
+
+
+Percentage red blood cells
+``` {r % fred blood cells}
+#Find the corticotroph index
+frbcidx <- which(fcellspercluster=="RBC")
+
+#pull out the number of thyrotrophs
+frbcs <- fcellspercluster[frbcidx,"Freq"]
+
+fproprbc <- (frbcs/fcellstotal)*100
+```
+
+Percentage white blood cells
+``` {r %fwhite blood cells}
+#Find the corticotroph index
+fwbcidx <- which(fcellspercluster=="WBC")
+
+#pull outf the number of thyrotrophs
+fwbcs <- fcellspercluster[fwbcidx,"Freq"]
+
+fpropwbc <- (fwbcs/fcellstotal)*100
+```
+
+Percentage Mki67+
+``` {r % fMki67+ blood cells}
+#Find the corticotroph index
+fMki67idx <- which(fcellspercluster=="Mki67+")
+
+#pull out the number of thyrotrophs
+fMki67s <- fcellspercluster[fMki67idx,"Freq"]
+
+fpropMki67 <- (fMki67s/fcellstotal)*100
+```
+Percentage uncategorised
+``` {r % funcategorised cells}
+#Find the corticotroph index
+fUncategorisedidx <- which(fcellspercluster=="Uncategorised")
+
+#pull out the number of thyrotrophs
+fUncategoriseds <- fcellspercluster[fUncategorisedidx,"Freq"]
+
+fpropUncategorised <- (fUncategoriseds/fcellstotal)*100
+```
+ 
+Percentage multi hormonal
+``` {r % fmulti hormonal cells}
+#Find the corticotroph index
+fMultiHormonalidx <- which(fcellspercluster=="Multi Hormonal")
+
+#pull out the number of thyrotrophs
+fMultiHormonals <- fcellspercluster[fMultiHormonalidx,"Freq"]
+
+fpropMultiHormonal <- (fMultiHormonals/fcellstotal)*100
+``` 
+
+ Female pituitary cell proportions (multihormonal, uncateghorised and damaged cells excluded) 
+ * Thyrotrophs;         --                   
+ * Somatotrophs;        26%   
+ * Lactotrophs;         39%           
+ * Gonadotrophs;        3%     
+ * Melanotrophs;        15%     
+ * Corticotrophs;       3%     
+ * Stem cells;          7%                   
+ * Endothelial cells;   --              
+ * Posteriour pituitary cells;  --
+ * Collagen cells;      3%          
+ * Red blood cells;     --              
+ * White blood cells;   4% 
+ * Mki67+;              <1%
+
+Total ~100%
+
+The distribution of cells types in Males and Females is different.
+
+
+\newpage 
+## Isolate the corticotrophs
+
+Isolate the corticotrophs and create a new Seurat object:
+``` {r isolate corticotroph cluster, include=FALSE}
+corts <- subset(Ho.Seuratobj, idents = "Corticotroph")
+```
+
+
+Visualise the corticotroph cluster on its own:
+
+``` {r plot corts group sex}
+DimPlot(corts,group.by="Sex", label=TRUE) + NoLegend()+ ggtitle("Corticotroph Cluster grouped by sex")
 
 ```
 
 
+```{r Plotcort seperate by sex, echo = FALSE,fig.height=3.5}
+DimPlot(corts, split.by = "Sex", label=FALSE) + NoLegend() + ggtitle("Corticotrophs split By sex")
+```
 
+Can see that the male and female corticotrophs cluster differently. Are different genes being expressed?
 
-
-
-
+Need to break corts up into male and female
 
 
 
