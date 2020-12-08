@@ -371,7 +371,7 @@ Top differentially expressed gene for each cluster:
 ```{r examin cluster differential expression, include=FALSE} 
 #examine DE genes in the   clusters
 #find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold difference
-markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.3)
+markers <-FindAllMarkers(data, only.pos = TRUE, min.pct = 0.25, logfc.threshold =1)
 #examine top 2 deferentially expressed genes in each corticotroph cluster
 df <- markers %>% group_by(cluster) %>% top_n(n=2, wt= avg_logFC)
 
