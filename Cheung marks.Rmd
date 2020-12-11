@@ -49,9 +49,9 @@ library(patchwork)
 library(sctransform)
 library(ggplot2)
 library(scales)
-library(monocle3)
 library(SeuratWrappers)
 library(Matrix)
+library(monocle3)
 ```
 
 Set a seed so that clusters look the same each plot:
@@ -170,6 +170,11 @@ Once the clusters have been established, they can be projected into two lower di
 #plot the clusters
 DimPlot(data, label=TRUE) + NoLegend()
 
+```
+Save a RDS so dont have to always run the CPU intensive work
+
+``` {r save rds}
+saveRDS(data, file = "../scRNAseq_pipeline/Cheung.rds")
 ```
 
 \newpage
@@ -661,7 +666,11 @@ df <- cortico.markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
 head(df, n=30)
 
 ```
+Save corticotroph RDS so dont have to always run the CPU intensive work
 
+``` {r save corts rds}
+saveRDS(cortico, file = "../scRNAseq_pipeline/CheungCorticotrophs.rds")
+```
 A quick GO analysis using an [online tool](http://bioinformatics.sdstate.edu/go/) shows that many of the genes in cluster 1 are related to stress response and glucocorticoid levels. However, they are also connectoed to mechanical stress, which may have been imparted during the mechanical dispersion. To discover which these are related to, a comparison is made to scRNAseq data from a new study, which did not disperse the cells, rather used a snap freeze dispersion technique [Ruf-Zamojski et al 2020](https://doi.org/10.1101/2020.06.06.138024). WHilst not available for download yet, the data may be explored using an [online reader](https://snpituitaryatlas.princeton.edu).
 
 The new study includes male and female samples and was not dispersed mechanically. If the genes from cluster 1 are present in this data too, it would suggest that the genes seen in cluster one are indeed common to corticotrophs and relevent in stress response.
