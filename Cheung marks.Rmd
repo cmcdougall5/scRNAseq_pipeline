@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
   
 ##  Housekeeping
-
+#
 Perform housekeeping (clear data and cache)
 ``` {r clean}
 #First clear the environment;
