@@ -25,24 +25,63 @@ data.dir <- setwd(here::here())
 data <- readRDS("Clusters.rds")
 
 #open plot of clusters
-png("unamed clusters")
+png("unamed clusters.png")
 #visualise the clusters- make plot
 DimPlot(data, label=TRUE) + NoLegend()
 #save plot
-dev.off
+dev.off()
 ########Visualise expression
 #How well do the clusters represent pituitary cell types?
 #use canonical markers to attriubute cell type.
-#viloin plot of expression to look for most common cell tpes (Somatotrophs, Lactotrophs,Gonadotrophs,Thyrotrophs Melanotrophs, Corticotrophs. )
-#se canonical features
-canonical <- c("Gh","Prl","Cga","Tshb","Pomc", "Pcsk2")
+
+#examine expression to establish cell types (Somatotrophs, Lactotrophs,Gonadotrophs,Thyrotrophs Melanotrophs, Corticotrophs. )
+#First, secretatory cells, use canonical markers;
+canonical <- c("Gh","Prl","Cga","Tshb","Pomc", "Pcsk2","Crhr1")
 
 #different visualisations
-VlnPlot(data, features = canonical, ncol = 2, pt.size=0)
-RidgePlot(data, features = canonical, ncol = 3)
-FeaturePlot(data, features = canonical)
-DotPlot(data, features = canonical) + RotatedAxis()
-DoHeatmap(subset(data, downsample = 100), features = canonical, size = 3)
+#Violin plot
+p <- VlnPlot(data, features = canonical, ncol = 2, pt.size=0)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "secretory violin.png")
+
+#Ridge plot
+p <- RidgePlot(data, features = canonical, ncol = 3)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "secretory ridge plot.png")
+
+#Feature plot
+p <- FeaturePlot(data, features = canonical)&scale_color_viridis_c()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "secretory feature plot.png")
+
+#Dot plot
+p <- DotPlot(data, features = canonical) + RotatedAxis()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "secretory dot plot.png")
+
+#Heatmap
+p <- DoHeatmap(subset(data, downsample = 100), features = canonical, size = 3)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "secretory heatmap.png")
+
+#THen other cell types
+others <- c("Nkx2-1","Mki67","Sox2","Col1a1","C1qa","Hbb-bt","Pecam1")
+
+#Violin plot
+p <- VlnPlot(data, features = others, ncol = 2, pt.size=0)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "others violin.png")
+
+#Ridge plot
+p <- RidgePlot(data, features = others, ncol = 3)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "others ridge plot.png")
+
+#Feature plot
+p <- FeaturePlot(data, features = others)&scale_color_viridis_c()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "others feature plot.png")
+
+#Dot plot
+p <- DotPlot(data, features = others) + RotatedAxis()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "others dot plot.png")
+
+#Heatmap
+p <- DoHeatmap(subset(data, downsample = 100), features = others, size = 3)
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "others heatmap.png")
+
 
 ######identify clusters
 #Use feature plots to confirm and attibute pituitary secretary cells
@@ -105,11 +144,10 @@ names(new.cluster.ids) <- levels(data)
 data <- RenameIdents(data, new.cluster.ids)
 
 #make a plot of named clusters
-png("named clusters")
 #visualise the named clusters-make plot
-DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
+p<-DimPlot(data, reduction ="umap", label = TRUE, pt.size = 0.5)+NoLegend()
 #saveplot
-dev.off
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "named clusters.png")
 
 #export the named clusters
 saveRDS(data, file = "../scRNAseq_pipeline/NamedClusters.rds")

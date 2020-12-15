@@ -31,8 +31,8 @@ data.dir <- setwd(here::here())
 data <- readRDS("NamedClusters.rds")
 
 #visualise the clusters
-DimPlot(data, label=TRUE) + NoLegend()
-
+p<-DimPlot(data, label=TRUE) + NoLegend()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "named clusters for corticotroph study.png")
 
 ########Isolate coticotrophs
 cort <- subset(data, idents = "Corticotroph")
@@ -55,8 +55,8 @@ cort <- FindClusters(cort, verbose=FALSE, resolution = 0.5)
 
 ############Visualise the corticotroph sub clusters
 #plot the clusters
-DimPlot(cort, pt.size = 5, label=TRUE) + NoLegend()
-
+p<-DimPlot(cort, pt.size = 5, label=TRUE) + NoLegend()
+ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "corticotroph sub-clusters.png")
 
 ####################Differential Expression between clusters
 
@@ -176,7 +176,7 @@ names(colors) = Cells(cort)
 png("Corticotroph trajectory anlalysis")
 
 #make the plot
-show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
+p <- show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
                                arrow.scale=0.75, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
                                grid.n=40, arrow.lwd=1,
                                do.par=F, cell.colors = colors,n.cores=4)
