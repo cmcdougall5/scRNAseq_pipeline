@@ -17,6 +17,8 @@ library(dplyr)
 library(patchwork)
 library(sctransform)
 library(ggplot2)
+library(goseq)
+library(GO.db)
 library(velocyto.R) 
 library(scales)
 
@@ -345,94 +347,6 @@ differenceInCellNums <- length(colnames(cortFromCluster))-length(colnames(cortFr
 #########Export the cluster information
 saveRDS(cortFromThreshold, file = "../scRNAseq_pipeline/THresholdCorticotrophSubClusters.rds")
 
-####################Differential Expression between clusters
-
-######examine DE genes in the   clusters
-#find the markers for EVERY CLUSTER when compared to remaining cells, only +ve ones, 2 fold difference (logfc = 1)
-markers <-FindAllMarkers(cortFromThreshold, only.pos = TRUE, min.pct = 0.25, logfc.threshold =1)
-#examine top 2 deferentially expressed genes in each corticotroph cluster
-df <- markers %>% group_by(cluster) %>% top_n(n=10, wt= avg_logFC)
-#plot top 2 of each cluster
-head(df, n=30)
-
-#Write tables
-write.csv(df,"ThresholdCorticotrophDifferentialyExpressedGenes.csv")
-
-#################Trajectory analysis
-# Load velocyto results
-spliced <- readRDS("VelocytoSpliced.rds")
-unspliced <- readRDS("VelocytoUnspliced.rds")
-
-# Match cell names
-# Velocyto cell names are saved as something like
-# pool1_possorted_genome_bam_HL3XD:ACCGTAAAGTGTTTGCx
-# We just want the cell tags in the matrices
-colnames(spliced) <- substr(colnames(spliced), 34, 49)
-colnames(unspliced) <- substr(colnames(unspliced), 34, 49)
-
-# Velocyto was run only on pool1, so we add -1 at the end
-#need to change this in the seurat object
-colnames(spliced) <- paste0(colnames(spliced), "-1")
-colnames(unspliced) <- paste0(colnames(unspliced), "-1")
-
-# Find common tags between the dataset and velocity results
-cell.ids <- intersect(colnames(spliced), Cells(cortFromThreshold))
-
-# Remove data from the other cells
-spliced <- spliced[, cell.ids]
-unspliced <- unspliced[, cell.ids]
-
-cortFromThreshold<- subset.data.frame(cortFromThreshold, cells = cell.ids)
-
-# Sanity checks - should all return TRUE
-all(colnames(spliced) %in% Cells(cortFromThreshold))
-all(colnames(unspliced) %in% Cells(cortFromThreshold))
-all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
-all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
-
-# Calculate gene correlation
-cell.dist <- as.dist(1-armaCor(t(cortFromThreshold[['pca']]@cell.embeddings)))
-
-# Filter genes before velocity calculation
-spliced <- filter.genes.by.cluster.expression(spliced, Idents(cortFromThreshold),
-                                              min.max.cluster.average = 0.2)
-unspliced <- filter.genes.by.cluster.expression(unspliced, Idents(cortFromThreshold), 
-                                                min.max.cluster.average = 0.2)
-
-fit.quantile <- 0.02
-# Calculate velocity estimates
-rvel.cd <- gene.relative.velocity.estimates(spliced, unspliced, deltaT=1, kCells=25,
-                                            cell.dist=cell.dist, 
-                                            fit.quantile=fit.quantile)
-
-# Get the UMAP coordinates
-emb <- cortFromThreshold[["umap"]]@cell.embeddings
-
-# hue_pal returns the ggplot default palette colors
-# We generate a named vector with a color for each cell
-colors <- hue_pal()(3)[Idents(cortFromThreshold)]
-names(colors) = Cells(cortFromThreshold)
-
-#make the plot
-show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
-                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
-                               grid.n=40, arrow.lwd=1,
-                               do.par=F, cell.colors = colors,n.cores=4)
-#save plot
-
-#save the plot
-#open the plot
-png("threshold trajectory anlalysis.png")
-
-#make the plot
-show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
-                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
-                               grid.n=40, arrow.lwd=1,
-                               do.par=F, cell.colors = colors,n.cores=4)
-#save plot
-dev.off()
-#dev.copy(png,'myplot.png')
-#dev.off()
 
 ######################################################################################
 #                                 ANALYSIS                                           #
@@ -469,7 +383,7 @@ write.csv(df,"Corticotroph2foldDifferentialyExpressedGenes.csv")
 #################GO terms for differentially expressed genes
 #pull out the DE genes
 de.genes <- de$gene
-assayed.genes <- rownames(cort)
+assayed.genes <- rownames(cortFromThreshold)
 
 
 #construct vector for goseq 
@@ -497,7 +411,7 @@ head(GO.wall)
 #################GO terms for 2 fold differentially expressed genes
 #pull out the 2 fold DE genes
 de.genes1 <- df$gene
-assayed.genes <- rownames(cort)
+assayed.genes <- rownames(cortFromThreshold)
 
 
 #construct vector for goseq 
@@ -578,36 +492,111 @@ for(go in enriched.GO[1:10]){
 
 #######Heatmaps
 #Heatmap for the de genes
-DoHeatmap(subset(cort, downsample = 100), features = de.genes, size = 3) + ggtitle("Corticotroph subclusters; top 10 DE genes " )
-p <- DoHeatmap(subset(cort, downsample = 100), features = de.genes, size = 3)+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
+DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes, size = 3) + ggtitle("Corticotroph subclusters; top 10 DE genes " )
+p <- DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes, size = 3)+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "DE heatmap.png")
 
 #Heatmap for the 2 fold de genes
-DoHeatmap(subset(cort, downsample = 100), features = de.genes1, size = 3) + ggtitle("Corticotroph subclusters; 2 fold DE genes " )
-p <- DoHeatmap(subset(cort, downsample = 100), features = de.genes, size = 3)+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
+DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes1, size = 3) + ggtitle("Corticotroph subclusters; 2 fold DE genes " )
+p <- DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes, size = 3)+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "2fold heatmap.png")
 
 
 #Heatmap for the 2 fold de genes in cluster 1
-DoHeatmap(subset(cort, downsample = 100), features = de.genes2, size = 3) + ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
-p <- DoHeatmap(subset(cort, downsample = 100), features = de.genes2, size = 3) + ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
+DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes2, size = 3) + ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
+p <- DoHeatmap(subset(cortFromThreshold, downsample = 100), features = de.genes2, size = 3) + ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "cluster 1 2fold heatmap.png")
 
 #Dotplots
 #dotplot for the DE genes
-DotPlot(cort, features = de.genes) + RotatedAxis()+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
-p <- DotPlot(cort, features = de.genes) + RotatedAxis()+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
+DotPlot(cortFromThreshold, features = de.genes) + RotatedAxis()+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
+p <- DotPlot(cortFromThreshold, features = de.genes) + RotatedAxis()+ ggtitle("Corticotroph subclusters; top 10 DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "Corticotroph subclusters; top 10 DE genes dot plot.png")
 
 #dotplot for the 2 fold DE genes
-DotPlot(cort, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
-p <- DotPlot(cort, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
+DotPlot(cortFromThreshold, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
+p <- DotPlot(cortFromThreshold, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subclusters; 2 fold DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "Corticotroph subclusters; 2 fold DE genes dot plot.png")
 
 #dotplot for the 2 fold DE genes in cluster 1
-DotPlot(cort, features = de.genes2) + RotatedAxis()+ ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
-p <- DotPlot(cort, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
+DotPlot(cortFromThreshold, features = de.genes2) + RotatedAxis()+ ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
+p <- DotPlot(cortFromThreshold, features = de.genes1) + RotatedAxis()+ ggtitle("Corticotroph subcluster 1; 2 fold DE genes " )
 ggsave(plot = p, width = 10, height = 10, dpi = 300, filename = "Corticotroph subcluster 1; 2 fold DE genes dot plot.png")
 
 
 
+###########################################Trajectory analysis
+# Load velocyto results
+spliced <- readRDS("VelocytoSpliced.rds")
+unspliced <- readRDS("VelocytoUnspliced.rds")
+
+# Match cell names
+# Velocyto cell names are saved as something like
+# pool1_possorted_genome_bam_HL3XD:ACCGTAAAGTGTTTGCx
+# We just want the cell tags in the matrices
+colnames(spliced) <- substr(colnames(spliced), 34, 49)
+colnames(unspliced) <- substr(colnames(unspliced), 34, 49)
+
+# Velocyto was run only on pool1, so we add -1 at the end
+#need to change this in the seurat object
+colnames(spliced) <- paste0(colnames(spliced), "-1")
+colnames(unspliced) <- paste0(colnames(unspliced), "-1")
+
+# Find common tags between the dataset and velocity results
+cell.ids <- intersect(colnames(spliced), Cells(cortFromThreshold))
+
+# Remove data from the other cells
+spliced <- spliced[, cell.ids]
+unspliced <- unspliced[, cell.ids]
+
+cortFromThreshold<- subset.data.frame(cortFromThreshold, cells = cell.ids)
+
+# Sanity checks - should all return TRUE
+all(colnames(spliced) %in% Cells(cortFromThreshold))
+all(colnames(unspliced) %in% Cells(cortFromThreshold))
+all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
+all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
+
+# Calculate gene correlation
+cell.dist <- as.dist(1-armaCor(t(cortFromThreshold[['pca']]@cell.embeddings)))
+
+# Filter genes before velocity calculation
+spliced <- filter.genes.by.cluster.expression(spliced, Idents(cortFromThreshold),
+                                              min.max.cluster.average = 0.2)
+unspliced <- filter.genes.by.cluster.expression(unspliced, Idents(cortFromThreshold), 
+                                                min.max.cluster.average = 0.2)
+
+fit.quantile <- 0.02
+# Calculate velocity estimates
+rvel.cd <- gene.relative.velocity.estimates(spliced, unspliced, deltaT=1, kCells=25,
+                                            cell.dist=cell.dist, 
+                                            fit.quantile=fit.quantile)
+
+# Get the UMAP coordinates
+emb <- cortFromThreshold[["umap"]]@cell.embeddings
+
+# hue_pal returns the ggplot default palette colors
+# We generate a named vector with a color for each cell
+colors <- hue_pal()(3)[Idents(cortFromThreshold)]
+names(colors) = Cells(cortFromThreshold)
+
+#make the plot
+show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
+                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
+                               grid.n=40, arrow.lwd=1,
+                               do.par=F, cell.colors = colors,n.cores=4)
+#save plot
+
+#save the plot
+#open the plot
+png("threshold trajectory anlalysis.png")
+
+#make the plot
+show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
+                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
+                               grid.n=40, arrow.lwd=1,
+                               do.par=F, cell.colors = colors,n.cores=4)
+#save plot
+dev.off()
+#dev.copy(png,'myplot.png')
+#dev.off()
