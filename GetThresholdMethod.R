@@ -15,6 +15,8 @@ library(dplyr)
 library(patchwork)
 library(sctransform)
 library(ggplot2)
+library(velocyto.R) 
+library(scales)
 
 ##########Set working directories
 
@@ -316,7 +318,81 @@ head(df, n=30)
 #Write tables
 write.csv(df,"ThresholdCorticotrophDifferentialyExpressedGenes.csv")
 
+#################Trajectory analysis
+# Load velocyto results
+spliced <- readRDS("VelocytoSpliced.rds")
+unspliced <- readRDS("VelocytoUnspliced.rds")
 
+# Match cell names
+# Velocyto cell names are saved as something like
+# pool1_possorted_genome_bam_HL3XD:ACCGTAAAGTGTTTGCx
+# We just want the cell tags in the matrices
+colnames(spliced) <- substr(colnames(spliced), 34, 49)
+colnames(unspliced) <- substr(colnames(unspliced), 34, 49)
+
+# Velocyto was run only on pool1, so we add -1 at the end
+#need to change this in the seurat object
+colnames(spliced) <- paste0(colnames(spliced), "-1")
+colnames(unspliced) <- paste0(colnames(unspliced), "-1")
+
+# Find common tags between the dataset and velocity results
+cell.ids <- intersect(colnames(spliced), Cells(cortFromThreshold))
+
+# Remove data from the other cells
+spliced <- spliced[, cell.ids]
+unspliced <- unspliced[, cell.ids]
+
+cortFromThreshold<- subset.data.frame(cortFromThreshold, cells = cell.ids)
+
+# Sanity checks - should all return TRUE
+all(colnames(spliced) %in% Cells(cortFromThreshold))
+all(colnames(unspliced) %in% Cells(cortFromThreshold))
+all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
+all(Cells(cortFromThreshold) %in% colnames(cortFromThreshold))
+
+# Calculate gene correlation
+cell.dist <- as.dist(1-armaCor(t(cortFromThreshold[['pca']]@cell.embeddings)))
+
+# Filter genes before velocity calculation
+spliced <- filter.genes.by.cluster.expression(spliced, Idents(cortFromThreshold),
+                                              min.max.cluster.average = 0.2)
+unspliced <- filter.genes.by.cluster.expression(unspliced, Idents(cortFromThreshold), 
+                                                min.max.cluster.average = 0.2)
+
+fit.quantile <- 0.02
+# Calculate velocity estimates
+rvel.cd <- gene.relative.velocity.estimates(spliced, unspliced, deltaT=1, kCells=25,
+                                            cell.dist=cell.dist, 
+                                            fit.quantile=fit.quantile)
+
+# Get the UMAP coordinates
+emb <- cortFromThreshold[["umap"]]@cell.embeddings
+
+# hue_pal returns the ggplot default palette colors
+# We generate a named vector with a color for each cell
+colors <- hue_pal()(3)[Idents(cortFromThreshold)]
+names(colors) = Cells(cortFromThreshold)
+
+#make the plot
+show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
+                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
+                               grid.n=40, arrow.lwd=1,
+                               do.par=F, cell.colors = colors,n.cores=4)
+#save plot
+
+#save the plot
+#open the plot
+png("threshold trajectory anlalysis.png")
+
+#make the plot
+show.velocity.on.embedding.cor(emb, rvel.cd, n=50, scale='sqrt', cex=.8,
+                               arrow.scale=2, show.grid.flow=TRUE, min.grid.cell.mass=0.5,
+                               grid.n=40, arrow.lwd=1,
+                               do.par=F, cell.colors = colors,n.cores=4)
+#save plot
+dev.off()
+#dev.copy(png,'myplot.png')
+#dev.off()
 
 
 
